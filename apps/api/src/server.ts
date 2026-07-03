@@ -31,42 +31,50 @@ export function buildServer() {
   });
 
   app.register(cors, {
-    origin: true,
-    credentials: true,
+    origin: "*",
+    credentials: false,
   });
   app.register(sensible);
   app.register(jwt, {
     secret: config.jwtSecret,
   });
 
-  app.decorate("authenticate", async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      await request.jwtVerify();
-      const payload = request.user as AdminTokenPayload;
-      const admin = await prisma.admin.findUnique({
-        where: { id: payload.id },
-        select: { ativo: true, role: true },
-      });
+  app.decorate(
+    "authenticate",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        await request.jwtVerify();
+        const payload = request.user as AdminTokenPayload;
+        const admin = await prisma.admin.findUnique({
+          where: { id: payload.id },
+          select: { ativo: true, role: true },
+        });
 
-      if (!admin?.ativo) {
-        return reply.status(401).send({ error: "Token invalido ou ausente." });
+        if (!admin?.ativo) {
+          return reply
+            .status(401)
+            .send({ error: "Token invalido ou ausente." });
+        }
+
+        payload.role = admin.role as AdminTokenPayload["role"];
+      } catch {
+        reply.status(401).send({ error: "Token invalido ou ausente." });
       }
-
-      payload.role = admin.role as AdminTokenPayload["role"];
-    } catch {
-      reply.status(401).send({ error: "Token invalido ou ausente." });
-    }
-  });
+    },
+  );
 
   app.get("/health", async () => ({ ok: true }));
 
-  app.register(async (api) => {
-    await api.register(authRoutes);
-    await api.register(crudRoutes);
-    await api.register(dashboardRoutes);
-    await api.register(billingRoutes);
-    await api.register(portalRoutes);
-  }, { prefix: "/api" });
+  app.register(
+    async (api) => {
+      await api.register(authRoutes);
+      await api.register(crudRoutes);
+      await api.register(dashboardRoutes);
+      await api.register(billingRoutes);
+      await api.register(portalRoutes);
+    },
+    { prefix: "/api" },
+  );
 
   app.addHook("onClose", async () => {
     await prisma.$disconnect();
