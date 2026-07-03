@@ -7,11 +7,11 @@
         <p class="mt-1 max-w-2xl text-sm text-muted-foreground">{{ description }}</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <slot name="toolbar" :reload="loadItems" />
         <Button variant="secondary" @click="loadItems">
           <RefreshCw class="h-4 w-4" />
           Recarregar
         </Button>
+        <slot name="toolbar" :reload="loadItems" />
         <Button :disabled="createDisabled" :title="createDisabledReason" @click="openCreate">Novo</Button>
       </div>
     </div>

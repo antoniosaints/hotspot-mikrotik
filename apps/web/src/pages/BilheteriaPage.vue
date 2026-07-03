@@ -1,31 +1,62 @@
 <template>
-  <div class="space-y-5">
-    <Card title="Acesso personalizado" description="Configure o valor por minuto e os limites do slider mostrado como ultima opcao em Comprar acesso.">
-      <Alert v-if="customError" variant="destructive" class="mb-4">{{ customError }}</Alert>
-      <Alert v-if="customSuccess" class="mb-4">{{ customSuccess }}</Alert>
+  <CrudPage
+    title="Bilheteria"
+    singular-title="plano"
+    description="Planos vendidos no portal de compra de acesso."
+    endpoint="/planos"
+    :columns="columns"
+    :fields="fields"
+    :create-disabled="hotspotsLoading || hotspots.length === 0"
+    :create-disabled-reason="createDisabledReason"
+  >
+    <template #toolbar>
+      <Button variant="secondary" :disabled="hotspotsLoading || hotspots.length === 0" :title="createDisabledReason" @click="openCustomModal">
+        <SlidersHorizontal class="h-4 w-4" />
+        Acesso personalizado
+      </Button>
+    </template>
+  </CrudPage>
 
-      <div class="grid gap-4 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
-        <div>
-          <Label>Hotspot</Label>
-          <Select v-model="selectedCustomHotspotId" class="mt-2" placeholder="Selecione um hotspot">
-            <option v-for="hotspot in hotspots" :key="hotspot.id" :value="hotspot.id">{{ hotspot.nome }}</option>
-          </Select>
-        </div>
-        <label class="flex items-center gap-3 rounded-md border border-border bg-background/50 px-3 py-2 text-sm font-medium text-foreground lg:mt-6">
+  <Dialog
+    v-model:open="customModalOpen"
+    width-class="max-w-3xl"
+    title="Acesso personalizado"
+    description="Configure o valor por minuto e os limites do slider mostrado como ultima opcao em Comprar acesso."
+  >
+    <Alert v-if="customError" variant="destructive" class="mb-4">{{ customError }}</Alert>
+    <Alert v-if="customSuccess" class="mb-4">{{ customSuccess }}</Alert>
+
+    <form id="custom-access-form" class="space-y-4" @submit.prevent="saveCustomSettings">
+      <div>
+        <Label>Hotspot</Label>
+        <Select v-model="selectedCustomHotspotId" class="mt-2" placeholder="Selecione um hotspot">
+          <option v-for="hotspot in hotspots" :key="hotspot.id" :value="hotspot.id">{{ hotspot.nome }}</option>
+        </Select>
+      </div>
+
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="flex items-center gap-3 rounded-md border border-border bg-background/50 px-3 py-3 text-sm font-medium text-foreground">
           <input v-model="customForm.compraOnline" type="checkbox" />
           Compra online
         </label>
-        <label class="flex items-center gap-3 rounded-md border border-border bg-background/50 px-3 py-2 text-sm font-medium text-foreground lg:mt-6">
+        <label class="flex items-center gap-3 rounded-md border border-border bg-background/50 px-3 py-3 text-sm font-medium text-foreground">
           <input v-model="customForm.compraPersonalizada" type="checkbox" />
           Personalizado
         </label>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
         <div>
           <Label>Valor/min (centavos)</Label>
           <Input v-model="customForm.valorMinutoCentavos" class="mt-2" type="number" min="1" />
         </div>
+        <div>
+          <Label>Conexoes</Label>
+          <Input v-model="customForm.conexoesPersonalizado" class="mt-2" type="number" min="1" />
+        </div>
       </div>
 
-      <div class="mt-4 grid gap-4 md:grid-cols-4">
+      <div class="grid gap-4 sm:grid-cols-3">
         <div>
           <Label>Minimo (min)</Label>
           <Input v-model="customForm.tempoPersonalizadoMinimo" class="mt-2" type="number" min="1" />
@@ -38,40 +69,25 @@
           <Label>Passo (min)</Label>
           <Input v-model="customForm.tempoPersonalizadoPasso" class="mt-2" type="number" min="1" />
         </div>
-        <div>
-          <Label>Conexoes</Label>
-          <Input v-model="customForm.conexoesPersonalizado" class="mt-2" type="number" min="1" />
-        </div>
       </div>
+    </form>
 
-      <template #footer>
-        <div class="flex justify-end">
-          <Button :disabled="customSaving || !selectedCustomHotspotId" @click="saveCustomSettings">
-            {{ customSaving ? "Salvando..." : "Salvar personalizado" }}
-          </Button>
-        </div>
-      </template>
-    </Card>
-
-    <CrudPage
-      title="Bilheteria"
-      singular-title="plano"
-      description="Planos vendidos no portal de compra de acesso."
-      endpoint="/planos"
-      :columns="columns"
-      :fields="fields"
-      :create-disabled="hotspotsLoading || hotspots.length === 0"
-      :create-disabled-reason="createDisabledReason"
-    />
-  </div>
+    <template #footer>
+      <Button variant="outline" @click="customModalOpen = false">Cancelar</Button>
+      <Button type="submit" form="custom-access-form" :disabled="customSaving || !selectedCustomHotspotId">
+        {{ customSaving ? "Salvando..." : "Salvar personalizado" }}
+      </Button>
+    </template>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { SlidersHorizontal } from "lucide-vue-next";
 
 import Alert from "@/components/ui/Alert.vue";
 import Button from "@/components/ui/Button.vue";
-import Card from "@/components/ui/Card.vue";
+import Dialog from "@/components/ui/Dialog.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -82,6 +98,7 @@ import type { Hotspot } from "@/types/hotspot";
 const hotspots = ref<Hotspot[]>([]);
 const hotspotsLoading = ref(true);
 const selectedCustomHotspotId = ref("");
+const customModalOpen = ref(false);
 const customSaving = ref(false);
 const customError = ref("");
 const customSuccess = ref("");
@@ -131,6 +148,16 @@ const createDisabledReason = computed(() => {
 
 const selectedCustomHotspot = computed(() => hotspots.value.find((hotspot) => hotspot.id === selectedCustomHotspotId.value));
 
+function openCustomModal(): void {
+  if (hotspotsLoading.value || hotspots.value.length === 0) return;
+  if (!selectedCustomHotspotId.value) {
+    selectedCustomHotspotId.value = hotspots.value[0]?.id ?? "";
+  }
+  customError.value = "";
+  customSuccess.value = "";
+  customModalOpen.value = true;
+}
+
 watch(selectedCustomHotspot, (hotspot) => {
   customError.value = "";
   customSuccess.value = "";
@@ -168,6 +195,7 @@ async function saveCustomSettings(): Promise<void> {
     const updated = await api.put<Hotspot>(`/hotspots/${hotspot.id}`, payload);
     hotspots.value = hotspots.value.map((item) => (item.id === updated.id ? updated : item));
     customSuccess.value = "Configuracao personalizada salva.";
+    customModalOpen.value = false;
   } catch (requestError) {
     customError.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar o personalizado.";
   } finally {
