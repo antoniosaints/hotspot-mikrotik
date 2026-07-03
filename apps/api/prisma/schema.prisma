@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id          String   @id @default(cuid())
+  usuario     String   @unique
+  senhaHash   String
+  role        String   @default("admin")
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+}
+
+model Local {
+  id          String    @id @default(cuid())
+  nome        String
+  descricao   String?
+  ativo       Boolean   @default(true)
+  criadoEm    DateTime  @default(now())
+  atualizadoEm DateTime @updatedAt
+  hotspots    Hotspot[]
+}
+
+model Mikrotik {
+  id            String    @id @default(cuid())
+  nome          String
+  host          String
+  usuarioApi    String
+  senhaApi      String
+  portaApi      Int       @default(8728)
+  timeoutApi    Int       @default(5000)
+  profilePadrao String
+  ativo         Boolean   @default(true)
+  criadoEm      DateTime  @default(now())
+  atualizadoEm  DateTime  @updatedAt
+  hotspots      Hotspot[]
+  acessos       Acesso[]
+}
+
+model Hotspot {
+  id          String     @id @default(cuid())
+  nome        String
+  slug        String     @unique
+  portalUrl   String
+  urlPosLogin String?
+  loginVoucher Boolean   @default(true)
+  loginCpf    Boolean   @default(true)
+  loginIntegracao Boolean @default(false)
+  integracaoTempoMinutos Int @default(60)
+  compraOnline Boolean @default(false)
+  ativo       Boolean    @default(true)
+  localId     String
+  mikrotikId  String
+  integracaoId String?
+  pagamentoIntegracaoId String?
+  criadoEm    DateTime   @default(now())
+  atualizadoEm DateTime  @updatedAt
+  local       Local      @relation(fields: [localId], references: [id], onDelete: Restrict)
+  mikrotik    Mikrotik   @relation(fields: [mikrotikId], references: [id], onDelete: Restrict)
+  integracao  Integracao? @relation("HotspotLoginIntegracao", fields: [integracaoId], references: [id], onDelete: SetNull)
+  pagamentoIntegracao Integracao? @relation("HotspotPagamentoIntegracao", fields: [pagamentoIntegracaoId], references: [id], onDelete: SetNull)
+  vouchers    Voucher[]
+  cpfLogins   CpfLogin[]
+  acessos     Acesso[]
+  planos      PlanoBilheteria[]
+  compras     CompraAcesso[]
+}
+
+model Integracao {
+  id           String    @id @default(cuid())
+  nome         String
+  tipo         String    @default("IXC")
+  baseUrl      String?
+  usuario      String?
+  senha        String?
+  token        String?
+  chaveWebhook String?
+  ativo        Boolean   @default(true)
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  hotspotsLogin Hotspot[] @relation("HotspotLoginIntegracao")
+  hotspotsPagamento Hotspot[] @relation("HotspotPagamentoIntegracao")
+  compras      CompraAcesso[]
+}
+
+model PlanoBilheteria {
+  id                    String   @id @default(cuid())
+  nome                  String
+  tempoMinutos          Int
+  conexoesSimultaneas   Int      @default(1)
+  valorCentavos         Int
+  ativo                 Boolean  @default(true)
+  coletarNome           Boolean  @default(false)
+  coletarTelefone       Boolean  @default(false)
+  coletarEmail          Boolean  @default(false)
+  coletarCpf            Boolean  @default(false)
+  coletarEndereco       Boolean  @default(false)
+  hotspotId             String
+  criadoEm              DateTime @default(now())
+  atualizadoEm          DateTime @updatedAt
+  hotspot               Hotspot  @relation(fields: [hotspotId], references: [id], onDelete: Cascade)
+  compras               CompraAcesso[]
+}
+
+model CompraAcesso {
+  id                    String    @id @default(cuid())
+  status                String    @default("PENDENTE")
+  valorCentavos         Int
+  mercadoPagoPaymentId  String?
+  mercadoPagoStatus     String?
+  loginUsuario          String?
+  loginSenha            String?
+  nome                  String?
+  telefone              String?
+  email                 String?
+  cpf                   String?
+  endereco              String?
+  mac                   String?
+  ip                    String?
+  pagoEm                DateTime?
+  liberadoEm            DateTime?
+  erroLiberacao         String?
+  hotspotId             String
+  planoId               String
+  pagamentoIntegracaoId String?
+  acessoId              String?   @unique
+  criadoEm              DateTime  @default(now())
+  atualizadoEm          DateTime  @updatedAt
+  hotspot               Hotspot   @relation(fields: [hotspotId], references: [id], onDelete: Cascade)
+  plano                 PlanoBilheteria @relation(fields: [planoId], references: [id], onDelete: Restrict)
+  pagamentoIntegracao   Integracao? @relation(fields: [pagamentoIntegracaoId], references: [id], onDelete: SetNull)
+  acesso                Acesso?   @relation(fields: [acessoId], references: [id], onDelete: SetNull)
+
+  @@unique([mercadoPagoPaymentId])
+}
+
+model Voucher {
+  id           String    @id @default(cuid())
+  codigo       String    @unique
+  tempoMinutos Int
+  usado        Boolean   @default(false)
+  mac          String?
+  ip           String?
+  usadoEm      DateTime?
+  hotspotId    String
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  hotspot      Hotspot   @relation(fields: [hotspotId], references: [id], onDelete: Cascade)
+  acessos      Acesso[]
+}
+
+model CpfLogin {
+  id           String    @id @default(cuid())
+  nome         String
+  cpf          String
+  telefone     String?
+  tempoMinutos Int
+  ativo        Boolean   @default(true)
+  usadoEm      DateTime?
+  hotspotId    String
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  hotspot      Hotspot   @relation(fields: [hotspotId], references: [id], onDelete: Cascade)
+  acessos      Acesso[]
+
+  @@unique([hotspotId, cpf])
+}
+
+model Acesso {
+  id           String    @id @default(cuid())
+  tipo         String
+  codigo       String
+  mac          String?
+  ip           String?
+  loginEm      DateTime  @default(now())
+  expiraEm     DateTime
+  status       String    @default("LIBERADO")
+  hotspotId    String
+  mikrotikId   String?
+  voucherId    String?
+  cpfLoginId   String?
+  compra       CompraAcesso?
+  hotspot      Hotspot   @relation(fields: [hotspotId], references: [id], onDelete: Cascade)
+  mikrotik     Mikrotik? @relation(fields: [mikrotikId], references: [id], onDelete: SetNull)
+  voucher      Voucher?  @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  cpfLogin     CpfLogin? @relation(fields: [cpfLoginId], references: [id], onDelete: SetNull)
+}
