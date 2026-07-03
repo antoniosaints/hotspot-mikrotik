@@ -32,7 +32,7 @@ function readJwtSecret() {
 }
 
 function readWebOrigins() {
-  const origins = process.env.WEB_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173";
+  const origins = process.env.WEB_ORIGINS ?? process.env.WEB_ORIGIN ?? "https://hotspot.cas.net.br";
 
   return origins
     .split(",")
