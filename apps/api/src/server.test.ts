@@ -13,9 +13,9 @@ describe("buildServer", () => {
       const corsHealth = await app.inject({
         method: "GET",
         url: "/health",
-        headers: { origin: "http://localhost:5173" },
+        headers: { origin: "https://qualquer-dominio.example" },
       });
-      expect(corsHealth.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+      expect(corsHealth.headers["access-control-allow-origin"]).toBe("https://qualquer-dominio.example");
 
       const dashboard = await app.inject({ method: "GET", url: "/api/dashboard" });
       expect(dashboard.statusCode).toBe(401);

@@ -13,7 +13,6 @@ function readNumber(value: string | undefined, fallback: number) {
 export const config = {
   port: readNumber(process.env.PORT, 3333),
   jwtSecret: readJwtSecret(),
-  webOrigins: readWebOrigins(),
   databaseUrl: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
 } as const;
 
@@ -29,13 +28,4 @@ function readJwtSecret() {
   }
 
   return secret ?? DEV_JWT_SECRET;
-}
-
-function readWebOrigins() {
-  const origins = process.env.WEB_ORIGINS ?? process.env.WEB_ORIGIN ?? "https://hotspot.cas.net.br";
-
-  return origins
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
 }

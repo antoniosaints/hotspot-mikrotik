@@ -54,8 +54,6 @@ Em producao, defina `ADMIN_PASSWORD` para trocar a senha inicial do administrado
 
 - `JWT_SECRET`: obrigatorio em producao. Use um segredo forte e exclusivo do ambiente.
 - `ADMIN_PASSWORD`: senha inicial do admin em producao.
-- `WEB_ORIGINS`: origens liberadas no CORS da API, separadas por virgula. Exemplo: `https://hotspot.cas.net.br,https://cas-hotspot.nogezu.easypanel.host`.
-- `WEB_ORIGIN`: alternativa antiga para liberar apenas uma origem.
 - `VITE_API_URL`: opcional no frontend. Em desenvolvimento, a web usa proxy de `/api` para `http://localhost:3333`.
 
 Quando um MikroTik estiver marcado como ativo na plataforma, a API tenta comunicar com o RouterOS de verdade usando os dados cadastrados em `MikroTiks`. Para testes locais sem roteador, deixe o MikroTik cadastrado como inativo.
@@ -188,7 +186,6 @@ Antes de publicar:
 
 - Defina `JWT_SECRET`.
 - Defina `ADMIN_PASSWORD`.
-- Defina `WEB_ORIGINS` na API com o dominio publico do portal.
 - Defina `VITE_API_URL` no frontend com a URL publica da API.
 - Configure backup de `apps/api/data/hotspot.sqlite`.
 - Configure corretamente os roteadores MikroTik, hotspots e walled garden.
