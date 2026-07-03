@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { z, ZodError } from "zod";
 import { prisma } from "../../db.js";
 import { getIxcInvoicePix, listCurrentMonthOpenInvoices, validateIxcLogin, type IxcConfig } from "../../services/ixc.service.js";
@@ -28,6 +28,9 @@ const portalLoginRawSchema = z.object({
   chapChallenge: z.string().optional().nullable(),
   chapIdB64: z.string().optional().nullable(),
   chapChallengeB64: z.string().optional().nullable(),
+  returnUrl: z.string().optional().nullable(),
+  nativeLogin: z.string().optional().nullable(),
+  _nativeLogin: z.string().optional().nullable(),
   "link-login": z.string().optional().nullable(),
   "link-login-only": z.string().optional().nullable(),
   "link-orig": z.string().optional().nullable(),
@@ -75,7 +78,58 @@ export function normalizePortalLoginBody(input: unknown) {
     chapChallenge: body.chapChallenge ?? body["chap-challenge"],
     chapIdB64: body.chapIdB64 ?? body["chap-id-b64"],
     chapChallengeB64: body.chapChallengeB64 ?? body["chap-challenge-b64"],
+    returnUrl: body.returnUrl,
+    nativeLogin: body.nativeLogin === "1" || body._nativeLogin === "1",
   };
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function buildPortalRedirectHtml(returnUrl: string, params: Record<string, string | undefined>) {
+  const url = new URL(returnUrl);
+  for (const [key, value] of Object.entries(params)) {
+    if (value) url.searchParams.set(key, value);
+  }
+
+  const target = url.toString();
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Voltando</title>
+  <meta http-equiv="refresh" content="0;url=${escapeHtml(target)}">
+</head>
+<body>
+  <script>window.location.replace(${JSON.stringify(target)});</script>
+  <a href="${escapeHtml(target)}">Voltar</a>
+</body>
+</html>`;
+}
+
+function sendPortalLoginError(
+  reply: FastifyReply,
+  body: PortalLoginBody,
+  status: number,
+  payload: { error: string; code?: string },
+) {
+  if (body.nativeLogin && body.returnUrl) {
+    return reply.type("text/html").send(
+      buildPortalRedirectHtml(body.returnUrl, {
+        portalError: payload.error,
+        portalErrorCode: payload.code,
+        cpf: body.cpf ?? undefined,
+      }),
+    );
+  }
+
+  return reply.status(status).send(payload);
 }
 
 function randomPassword() {
@@ -337,12 +391,12 @@ export async function portalRoutes(app: FastifyInstance) {
 
       if (body.loginType === "voucher") {
         if (!hotspot.loginVoucher) {
-          return reply.status(400).send({ error: "Login por voucher desativado neste hotspot." });
+          return sendPortalLoginError(reply, body, 400, { error: "Login por voucher desativado neste hotspot." });
         }
 
         const codigo = body.codigo ?? body.voucher;
         if (!codigo) {
-          return reply.status(400).send({ error: "Voucher obrigatorio." });
+          return sendPortalLoginError(reply, body, 400, { error: "Voucher obrigatorio." });
         }
 
         const voucher = await prisma.voucher.findFirst({
@@ -350,7 +404,7 @@ export async function portalRoutes(app: FastifyInstance) {
         });
 
         if (!voucher) {
-          return reply.status(400).send({ error: "Voucher indisponivel ou ja utilizado." });
+          return sendPortalLoginError(reply, body, 400, { error: "Voucher indisponivel ou ja utilizado." });
         }
 
         username = voucher.codigo;
@@ -361,11 +415,11 @@ export async function portalRoutes(app: FastifyInstance) {
         accessType = LoginType.VOUCHER;
       } else if (body.loginType === "cpf") {
         if (!hotspot.loginCpf) {
-          return reply.status(400).send({ error: "Login por CPF desativado neste hotspot." });
+          return sendPortalLoginError(reply, body, 400, { error: "Login por CPF desativado neste hotspot." });
         }
 
         if (!body.cpf) {
-          return reply.status(400).send({ error: "CPF obrigatorio." });
+          return sendPortalLoginError(reply, body, 400, { error: "CPF obrigatorio." });
         }
 
         const cpf = normalizeCpf(body.cpf);
@@ -374,7 +428,7 @@ export async function portalRoutes(app: FastifyInstance) {
         });
 
         if (!cpfLogin) {
-          return reply.status(400).send({ error: "CPF nao autorizado para este hotspot." });
+          return sendPortalLoginError(reply, body, 400, { error: "CPF nao autorizado para este hotspot." });
         }
 
         username = cpfLogin.cpf;
@@ -385,23 +439,23 @@ export async function portalRoutes(app: FastifyInstance) {
         accessType = LoginType.CPF;
       } else {
         if (!hotspot.loginIntegracao) {
-          return reply.status(400).send({ error: "Login por integracao desativado neste hotspot." });
+          return sendPortalLoginError(reply, body, 400, { error: "Login por integracao desativado neste hotspot." });
         }
 
         if (!hotspot.integracao || !hotspot.integracao.ativo) {
-          return reply.status(400).send({ error: "Integracao nao configurada para este hotspot." });
+          return sendPortalLoginError(reply, body, 400, { error: "Integracao nao configurada para este hotspot." });
         }
 
         if (hotspot.integracao.tipo !== "IXC") {
-          return reply.status(400).send({ error: "Tipo de integracao nao suportado." });
+          return sendPortalLoginError(reply, body, 400, { error: "Tipo de integracao nao suportado." });
         }
 
         if (!hotspot.integracao.baseUrl || !hotspot.integracao.usuario || !hotspot.integracao.senha) {
-          return reply.status(400).send({ error: "Integracao IXC incompleta para este hotspot." });
+          return sendPortalLoginError(reply, body, 400, { error: "Integracao IXC incompleta para este hotspot." });
         }
 
         if (!body.cpf) {
-          return reply.status(400).send({ error: "CPF ou CNPJ obrigatorio." });
+          return sendPortalLoginError(reply, body, 400, { error: "CPF ou CNPJ obrigatorio." });
         }
 
         let ixcValidation;
@@ -416,14 +470,13 @@ export async function portalRoutes(app: FastifyInstance) {
           );
         } catch (error) {
           const message = error instanceof Error ? error.message : "Falha desconhecida na integracao IXC.";
-          return reply.status(502).send({ error: `Nao foi possivel consultar a integracao IXC. ${message}` });
+          return sendPortalLoginError(reply, body, 502, { error: `Nao foi possivel consultar a integracao IXC. ${message}` });
         }
 
         if (!ixcValidation.allowed) {
-          return reply.status(400).send({
+          return sendPortalLoginError(reply, body, 400, {
             error: ixcValidation.reason,
             code: ixcValidation.code,
-            clienteId: "clienteId" in ixcValidation ? ixcValidation.clienteId : undefined,
           });
         }
 
@@ -482,7 +535,7 @@ export async function portalRoutes(app: FastifyInstance) {
         }
 
         const message = error instanceof Error ? error.message : "Falha desconhecida ao comunicar com o MikroTik.";
-        return reply.status(502).send({ error: message });
+        return sendPortalLoginError(reply, body, 502, { error: message });
       }
 
       await prisma.$transaction(async (tx) => {

@@ -332,6 +332,38 @@ function portalPayload(): Record<string, string> {
   });
 }
 
+function portalReturnUrl(): string {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("portalError");
+  url.searchParams.delete("portalErrorCode");
+  return url.toString();
+}
+
+function submitNativePortalLogin(): void {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = apiUrl("/portal/login");
+  form.style.display = "none";
+
+  const payload = {
+    ...portalPayload(),
+    nativeLogin: "1",
+    _nativeLogin: "1",
+    returnUrl: portalReturnUrl(),
+  };
+
+  for (const [name, value] of Object.entries(payload)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  }
+
+  document.body.appendChild(form);
+  form.submit();
+}
+
 function formatCpfCnpj(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 14);
 
@@ -629,50 +661,35 @@ async function finalizePurchaseLogin(): Promise<void> {
 async function submit(): Promise<void> {
   loading.value = true;
   error.value = "";
-  try {
-    const response = await fetch(apiUrl("/portal/login"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "text/html,application/json" },
-      body: JSON.stringify(portalPayload()),
-    });
-    const text = await response.text();
-    if (!response.ok) {
-      try {
-        const parsed = JSON.parse(text) as { error?: string; message?: string; code?: string };
-        if (activeTab.value === "ixc" && parsed.code === "CLIENTE_NAO_ENCONTRADO") {
-          error.value = "";
-          activeScreen.value = "ixcNotFound";
-          return;
-        }
-        if (activeTab.value === "ixc" && parsed.code === "CLIENTE_COM_DEBITOS") {
-          await loadIxcInvoices();
-          return;
-        }
-        error.value = parsed.error ?? parsed.message ?? "Nao foi possivel autenticar.";
-      } catch {
-        error.value = text || "Nao foi possivel autenticar.";
-      }
-      return;
-    }
-
-    document.open();
-    document.write(text);
-    document.close();
-  } finally {
-    loading.value = false;
-  }
+  submitNativePortalLogin();
 }
 
 onMounted(async () => {
   try {
     voucher.value = queryValue("voucher") ?? queryValue("codigo") ?? "";
     cpf.value = formatCpfCnpj(queryValue("cpf") ?? "");
+    const portalError = queryValue("portalError");
+    const portalErrorCode = queryValue("portalErrorCode");
 
     portal.value = await api.get<PortalInfo>(`/portal/${encodeURIComponent(slug.value)}`);
     selectedPlanId.value = portal.value.hotspot.planos[0]?.id ?? "";
 
     if (queryValue("ixcPayment") === "1" && restoreIxcPaymentState()) {
       return;
+    }
+
+    if (portalError) {
+      error.value = portalError;
+      if (portalErrorCode === "CLIENTE_NAO_ENCONTRADO") {
+        activeScreen.value = "ixcNotFound";
+        activeTab.value = "ixc";
+        return;
+      }
+      if (portalErrorCode === "CLIENTE_COM_DEBITOS") {
+        activeTab.value = "ixc";
+        await loadIxcInvoices();
+        return;
+      }
     }
 
     if (cpf.value && portal.value.loginTypes.cpf) {

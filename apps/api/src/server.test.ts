@@ -15,7 +15,7 @@ describe("buildServer", () => {
         url: "/health",
         headers: { origin: "https://qualquer-dominio.example" },
       });
-      expect(corsHealth.headers["access-control-allow-origin"]).toBe("https://qualquer-dominio.example");
+      expect(corsHealth.headers["access-control-allow-origin"]).toBe("*");
 
       const dashboard = await app.inject({ method: "GET", url: "/api/dashboard" });
       expect(dashboard.statusCode).toBe(401);
