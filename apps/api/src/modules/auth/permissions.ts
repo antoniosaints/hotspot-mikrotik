@@ -14,6 +14,7 @@ export type AdminRouteKey =
   | "mikrotiks"
   | "integracoes"
   | "hotspots"
+  | "cadastros-telas"
   | "bilheteria"
   | "prospeccoes"
   | "vouchers"
@@ -33,6 +34,7 @@ const routeRoles: Record<AdminRouteKey, AdminRole[]> = {
   mikrotiks: ["admin", "manager"],
   integracoes: ["admin", "manager"],
   hotspots: ["admin", "manager"],
+  "cadastros-telas": ["admin", "manager"],
   bilheteria: ["admin", "manager"],
   prospeccoes: ["admin", "manager"],
   vouchers: ["admin", "user"],

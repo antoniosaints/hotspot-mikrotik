@@ -26,6 +26,9 @@ export type AdminRole = "admin" | "manager" | "user";
 export type CurrentAdmin = {
   id: string;
   usuario: string;
+  nome?: string | null;
+  telefone?: string | null;
+  email?: string | null;
   role: AdminRole;
   ativo: boolean;
 };

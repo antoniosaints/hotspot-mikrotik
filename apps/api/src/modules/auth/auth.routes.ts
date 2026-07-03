@@ -29,6 +29,9 @@ export async function authRoutes(app: FastifyInstance) {
         admin: {
           id: admin.id,
           usuario: admin.usuario,
+          nome: admin.nome,
+          telefone: admin.telefone,
+          email: admin.email,
           role,
           ativo: admin.ativo,
           criadoEm: admin.criadoEm,
@@ -48,7 +51,7 @@ export async function authRoutes(app: FastifyInstance) {
     const payload = request.user as AdminTokenPayload;
     const admin = await prisma.admin.findUnique({
       where: { id: payload.id },
-      select: { id: true, usuario: true, role: true, ativo: true, criadoEm: true, atualizadoEm: true },
+      select: { id: true, usuario: true, nome: true, telefone: true, email: true, role: true, ativo: true, criadoEm: true, atualizadoEm: true },
     });
 
     return { admin };

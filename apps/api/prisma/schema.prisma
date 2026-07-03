@@ -12,6 +12,9 @@ model Admin {
   usuario     String   @unique
   senhaHash   String
   role        String   @default("admin")
+  nome        String?
+  telefone    String?
+  email       String?
   ativo       Boolean  @default(true)
   criadoEm    DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -54,22 +57,68 @@ model Hotspot {
   loginIntegracao Boolean @default(false)
   integracaoTempoMinutos Int @default(60)
   compraOnline Boolean @default(false)
+  compraPersonalizada Boolean @default(false)
+  valorMinutoCentavos Int?
+  tempoPersonalizadoMinimo Int @default(10)
+  tempoPersonalizadoMaximo Int @default(240)
+  tempoPersonalizadoPasso Int @default(10)
+  conexoesPersonalizado Int @default(1)
   ativo       Boolean    @default(true)
   localId     String
   mikrotikId  String
   integracaoId String?
   pagamentoIntegracaoId String?
+  cadastroTelaId String?
   criadoEm    DateTime   @default(now())
   atualizadoEm DateTime  @updatedAt
   local       Local      @relation(fields: [localId], references: [id], onDelete: Restrict)
   mikrotik    Mikrotik   @relation(fields: [mikrotikId], references: [id], onDelete: Restrict)
   integracao  Integracao? @relation("HotspotLoginIntegracao", fields: [integracaoId], references: [id], onDelete: SetNull)
   pagamentoIntegracao Integracao? @relation("HotspotPagamentoIntegracao", fields: [pagamentoIntegracaoId], references: [id], onDelete: SetNull)
+  cadastroTela CadastroTela? @relation(fields: [cadastroTelaId], references: [id], onDelete: SetNull)
   vouchers    Voucher[]
   cpfLogins   CpfLogin[]
   acessos     Acesso[]
   planos      PlanoBilheteria[]
   compras     CompraAcesso[]
+  leadsContratacao LeadContratacao[]
+}
+
+model CadastroTela {
+  id              String   @id @default(cuid())
+  nome            String
+  descricao       String?
+  coletarNome     Boolean  @default(true)
+  coletarEmail    Boolean  @default(false)
+  coletarEndereco Boolean  @default(false)
+  coletarCidade   Boolean  @default(false)
+  coletarCep      Boolean  @default(false)
+  coletarTelefone Boolean  @default(false)
+  coletarWhatsapp Boolean  @default(false)
+  coletarCpf      Boolean  @default(false)
+  ativo           Boolean  @default(true)
+  criadoEm        DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+  hotspots        Hotspot[]
+  leads           LeadContratacao[]
+}
+
+model LeadContratacao {
+  id             String   @id @default(cuid())
+  nome           String?
+  email          String?
+  endereco       String?
+  cidade         String?
+  cep            String?
+  telefone       String?
+  whatsapp       String?
+  cpf            String?
+  hotspotId      String
+  cadastroTelaId String?
+  criadoEm       DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+  hotspot        Hotspot  @relation(fields: [hotspotId], references: [id], onDelete: Cascade)
+  cadastroTela   CadastroTela? @relation(fields: [cadastroTelaId], references: [id], onDelete: SetNull)
 }
 
 model Integracao {
@@ -112,6 +161,7 @@ model CompraAcesso {
   id                    String    @id @default(cuid())
   status                String    @default("PENDENTE")
   valorCentavos         Int
+  tempoMinutos          Int?
   mercadoPagoPaymentId  String?
   mercadoPagoStatus     String?
   loginUsuario          String?
@@ -127,13 +177,13 @@ model CompraAcesso {
   liberadoEm            DateTime?
   erroLiberacao         String?
   hotspotId             String
-  planoId               String
+  planoId               String?
   pagamentoIntegracaoId String?
   acessoId              String?   @unique
   criadoEm              DateTime  @default(now())
   atualizadoEm          DateTime  @updatedAt
   hotspot               Hotspot   @relation(fields: [hotspotId], references: [id], onDelete: Cascade)
-  plano                 PlanoBilheteria @relation(fields: [planoId], references: [id], onDelete: Restrict)
+  plano                 PlanoBilheteria? @relation(fields: [planoId], references: [id], onDelete: Restrict)
   pagamentoIntegracao   Integracao? @relation(fields: [pagamentoIntegracaoId], references: [id], onDelete: SetNull)
   acesso                Acesso?   @relation(fields: [acessoId], references: [id], onDelete: SetNull)
 
@@ -145,6 +195,9 @@ model Voucher {
   codigo       String    @unique
   tempoMinutos Int
   usado        Boolean   @default(false)
+  vendido      Boolean   @default(false)
+  vendidoEm    DateTime?
+  segmentacao  String?
   mac          String?
   ip           String?
   usadoEm      DateTime?

@@ -21,6 +21,20 @@ export type Mikrotik = EntityBase & {
   ativo: boolean;
 };
 
+export type CadastroTela = EntityBase & {
+  nome: string;
+  descricao: string | null;
+  coletarNome: boolean;
+  coletarEmail: boolean;
+  coletarEndereco: boolean;
+  coletarCidade: boolean;
+  coletarCep: boolean;
+  coletarTelefone: boolean;
+  coletarWhatsapp: boolean;
+  coletarCpf: boolean;
+  ativo: boolean;
+};
+
 export type Integracao = EntityBase & {
   nome: string;
   tipo: "IXC" | "MERCADO_PAGO";
@@ -42,15 +56,23 @@ export type Hotspot = EntityBase & {
   loginIntegracao: boolean;
   integracaoTempoMinutos: number;
   compraOnline: boolean;
+  compraPersonalizada: boolean;
+  valorMinutoCentavos: number | null;
+  tempoPersonalizadoMinimo: number;
+  tempoPersonalizadoMaximo: number;
+  tempoPersonalizadoPasso: number;
+  conexoesPersonalizado: number;
   ativo: boolean;
   localId: string;
   mikrotikId: string;
   integracaoId: string | null;
   pagamentoIntegracaoId: string | null;
+  cadastroTelaId: string | null;
   local?: Local;
   mikrotik?: Mikrotik;
   integracao?: Integracao | null;
   pagamentoIntegracao?: Integracao | null;
+  cadastroTela?: CadastroTela | null;
 };
 
 export type PlanoBilheteria = EntityBase & {
@@ -69,8 +91,10 @@ export type PlanoBilheteria = EntityBase & {
 };
 
 export type CompraAcesso = EntityBase & {
+  origem?: string;
   status: string;
   valorCentavos: number;
+  tempoMinutos: number | null;
   mercadoPagoPaymentId: string | null;
   mercadoPagoStatus: string | null;
   loginUsuario: string | null;
@@ -79,16 +103,22 @@ export type CompraAcesso = EntityBase & {
   email: string | null;
   cpf: string | null;
   endereco: string | null;
+  cidade?: string | null;
+  cep?: string | null;
+  whatsapp?: string | null;
   hotspotId: string;
-  planoId: string;
+  planoId: string | null;
   hotspot?: Hotspot;
-  plano?: PlanoBilheteria;
+  plano?: PlanoBilheteria | null;
 };
 
 export type Voucher = EntityBase & {
   codigo: string;
   tempoMinutos: number;
   usado: boolean;
+  vendido: boolean;
+  vendidoEm: string | null;
+  segmentacao: string | null;
   mac: string | null;
   ip: string | null;
   usadoEm: string | null;
@@ -166,10 +196,28 @@ export type DashboardData = {
 };
 
 export type PortalInfo = {
-  hotspot: Pick<Hotspot, "id" | "nome" | "slug" | "portalUrl" | "loginVoucher" | "loginCpf" | "loginIntegracao" | "compraOnline" | "ativo"> & {
+  hotspot: Pick<
+    Hotspot,
+    | "id"
+    | "nome"
+    | "slug"
+    | "portalUrl"
+    | "loginVoucher"
+    | "loginCpf"
+    | "loginIntegracao"
+    | "compraOnline"
+    | "compraPersonalizada"
+    | "valorMinutoCentavos"
+    | "tempoPersonalizadoMinimo"
+    | "tempoPersonalizadoMaximo"
+    | "tempoPersonalizadoPasso"
+    | "conexoesPersonalizado"
+    | "ativo"
+  > & {
     local?: Pick<Local, "id" | "nome"> | null;
     integracao?: Pick<Integracao, "id" | "nome" | "tipo" | "ativo"> | null;
     pagamentoIntegracao?: Pick<Integracao, "id" | "nome" | "tipo" | "ativo"> | null;
+    cadastroTela?: CadastroTela | null;
     planos: Array<
       Pick<
         PlanoBilheteria,

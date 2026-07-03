@@ -2,13 +2,13 @@ import { createRouter, createWebHistory } from "vue-router";
 
 import AdminLayout from "@/layouts/AdminLayout.vue";
 import BilheteriaPage from "@/pages/BilheteriaPage.vue";
+import CadastrosTelasPage from "@/pages/CadastrosTelasPage.vue";
 import CpfLoginsPage from "@/pages/CpfLoginsPage.vue";
 import DashboardPage from "@/pages/DashboardPage.vue";
 import HotspotsPage from "@/pages/HotspotsPage.vue";
 import IntegracoesPage from "@/pages/IntegracoesPage.vue";
 import LocaisPage from "@/pages/LocaisPage.vue";
 import LoginPage from "@/pages/LoginPage.vue";
-import MikrotikConfigPage from "@/pages/MikrotikConfigPage.vue";
 import MikrotiksPage from "@/pages/MikrotiksPage.vue";
 import PortalPage from "@/pages/PortalPage.vue";
 import ProspeccoesPage from "@/pages/ProspeccoesPage.vue";
@@ -70,6 +70,12 @@ const router = createRouter({
           meta: { title: "Hotspots", requiresAuth: true, roles: ["admin", "manager"] },
         },
         {
+          path: "cadastros-telas",
+          name: "cadastros-telas",
+          component: CadastrosTelasPage,
+          meta: { title: "Telas de cadastro", requiresAuth: true, roles: ["admin", "manager"] },
+        },
+        {
           path: "bilheteria",
           name: "bilheteria",
           component: BilheteriaPage,
@@ -92,12 +98,6 @@ const router = createRouter({
           name: "logins",
           component: CpfLoginsPage,
           meta: { title: "Logins CPF", requiresAuth: true, roles: ["admin", "user"] },
-        },
-        {
-          path: "mikrotik",
-          name: "mikrotik-config",
-          component: MikrotikConfigPage,
-          meta: { title: "Configuracao MikroTik", requiresAuth: true, roles: ["admin", "manager"] },
         },
         {
           path: "usuarios",

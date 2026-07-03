@@ -33,26 +33,27 @@ const prismaMock = vi.hoisted(() => ({
 }));
 
 const createHotspotUserMock = vi.hoisted(() => vi.fn());
-
-vi.mock("../../db.js", () => ({
-  prisma: prismaMock,
-}));
-
-vi.mock("../../services/mikrotik.service.js", () => ({
-  createHotspotUser: createHotspotUserMock,
-  disconnectActiveHotspotClient: vi.fn(),
-  listActiveHotspotClients: vi.fn(async () => []),
-  listHotspotUsers: vi.fn(async () => []),
-  removeHotspotUser: vi.fn(),
-  removeHotspotUserById: vi.fn(),
-  testConnection: vi.fn(async () => ({ ok: true })),
-}));
+const removeHotspotUserMock = vi.hoisted(() => vi.fn());
 
 describe("portal voucher login", () => {
   beforeEach(() => {
     vi.resetModules();
     calls.length = 0;
     vi.clearAllMocks();
+
+    vi.doMock("../../db.js", () => ({
+      prisma: prismaMock,
+    }));
+
+    vi.doMock("../../services/mikrotik.service.js", () => ({
+      createHotspotUser: createHotspotUserMock,
+      disconnectActiveHotspotClient: vi.fn(),
+      listActiveHotspotClients: vi.fn(async () => []),
+      listHotspotUsers: vi.fn(async () => []),
+      removeHotspotUser: removeHotspotUserMock,
+      removeHotspotUserById: vi.fn(),
+      testConnection: vi.fn(async () => ({ ok: true })),
+    }));
 
     prismaMock.hotspot.findUnique.mockResolvedValue({
       id: "hotspot-1",
@@ -77,6 +78,9 @@ describe("portal voucher login", () => {
     prismaMock.voucher.updateMany.mockImplementation(voucherCompensate);
     createHotspotUserMock.mockImplementation(async () => {
       calls.push("createHotspotUser");
+    });
+    removeHotspotUserMock.mockImplementation(async () => {
+      calls.push("removeHotspotUser");
     });
     prismaMock.$transaction.mockImplementation(async (callback) =>
       callback({
@@ -107,8 +111,19 @@ describe("portal voucher login", () => {
 
       expect(response.statusCode).toBe(200);
       expect(calls).toContain("voucher.updateMany");
+      expect(calls).toContain("removeHotspotUser");
       expect(calls).toContain("createHotspotUser");
       expect(calls.indexOf("voucher.updateMany")).toBeLessThan(calls.indexOf("createHotspotUser"));
+      expect(calls.indexOf("removeHotspotUser")).toBeLessThan(calls.indexOf("createHotspotUser"));
+      expect(removeHotspotUserMock).toHaveBeenCalledWith(expect.objectContaining({ id: "mikrotik-1" }), "ABC123");
+      expect(createHotspotUserMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "mikrotik-1" }),
+        "ABC123",
+        expect.not.stringMatching(/^ABC123$/),
+        30,
+        "default",
+        "Hotspot VOUCHER",
+      );
       expect(acessoCreate).toHaveBeenCalledOnce();
     } finally {
       await app.close();

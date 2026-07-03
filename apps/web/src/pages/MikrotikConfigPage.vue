@@ -96,7 +96,8 @@ default`,
     title: "4. Walled garden",
     description: "Permita o acesso ao servidor do portal antes da autenticacao.",
     command: `/ip hotspot walled-garden add dst-host=${dnsName.value} action=allow
-/ip hotspot walled-garden ip add dst-host=${dnsName.value} action=accept`,
+/ip hotspot walled-garden ip add dst-host=${dnsName.value} action=accept
+/ip hotspot walled-garden ip add dst-address=${dnsName.value} action=accept`,
   },
   {
     title: "5. Arquivos do portal",

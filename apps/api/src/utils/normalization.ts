@@ -3,5 +3,5 @@ export function normalizeCpf(value: string) {
 }
 
 export function normalizeVoucherCode(value: string) {
-  return value.trim().toUpperCase();
+  return value.replace(/\s+/g, "").trim().toUpperCase();
 }

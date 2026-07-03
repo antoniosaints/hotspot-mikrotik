@@ -27,6 +27,8 @@ describe("buildMikrotikLoginHtml", () => {
     expect(html).toContain('appendHidden("hotspot", "$(hotspot)")');
     expect(html).toContain('var chapId = "$(chap-id)"');
     expect(html).toContain('var chapChallenge = "$(chap-challenge)"');
+    expect(html).toContain('var hasChap = chapId && chapChallenge');
+    expect(html).toContain('chapId.indexOf("$(") !== 0');
     expect(html).toContain('appendHidden("chap-id", chapId)');
     expect(html).toContain('appendHidden("chap-challenge", chapChallenge)');
     expect(html).not.toContain("$(chap-id-b64)");

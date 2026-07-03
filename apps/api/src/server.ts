@@ -34,9 +34,6 @@ export function buildServer() {
     origin: "*",
     credentials: false,
   });
-  app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_request, body, done) => {
-    done(null, Object.fromEntries(new URLSearchParams(String(body))));
-  });
   app.register(sensible);
   app.register(jwt, {
     secret: config.jwtSecret,

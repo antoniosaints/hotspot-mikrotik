@@ -63,11 +63,18 @@ const hotspotCreateSchema = z.object({
   loginIntegracao: z.boolean().optional(),
   integracaoTempoMinutos: z.number().int().positive().optional(),
   compraOnline: z.boolean().optional(),
+  compraPersonalizada: z.boolean().optional(),
+  valorMinutoCentavos: z.number().int().min(1).optional().nullable(),
+  tempoPersonalizadoMinimo: z.number().int().positive().optional(),
+  tempoPersonalizadoMaximo: z.number().int().positive().optional(),
+  tempoPersonalizadoPasso: z.number().int().positive().optional(),
+  conexoesPersonalizado: z.number().int().positive().optional(),
   ativo: z.boolean().optional(),
   localId: z.string().min(1),
   mikrotikId: z.string().min(1),
   integracaoId: z.string().optional().nullable(),
   pagamentoIntegracaoId: z.string().optional().nullable(),
+  cadastroTelaId: z.string().optional().nullable(),
 });
 const hotspotUpdateSchema = hotspotCreateSchema.partial();
 
@@ -75,6 +82,9 @@ const voucherCreateSchema = z.object({
   codigo: z.string().transform(normalizeVoucherCode).refine((value) => value.length > 0),
   tempoMinutos: z.number().int().positive(),
   usado: z.boolean().optional(),
+  vendido: z.boolean().optional(),
+  vendidoEm: z.coerce.date().optional().nullable(),
+  segmentacao: z.string().optional().nullable(),
   mac: z.string().optional().nullable(),
   ip: z.string().optional().nullable(),
   usadoEm: z.coerce.date().optional().nullable(),
@@ -98,18 +108,25 @@ const generateVouchersSchema = z.object({
   quantidade: z.number().int().min(1).max(500),
   tempoMinutos: z.number().int().positive(),
   prefixo: z.string().optional().nullable().transform((value) => (value ? normalizeVoucherCode(value).slice(0, 12) : "")),
+  segmentacao: z.string().optional().nullable(),
 });
 
 const usuarioCreateSchema = z.object({
   usuario: z.string().min(1),
   senha: z.string().min(6),
   role: z.enum(["admin", "manager", "user"]),
+  nome: z.string().optional().nullable(),
+  telefone: z.string().optional().nullable(),
+  email: z.preprocess((value) => (value === "" ? null : value), z.string().email().optional().nullable()),
   ativo: z.boolean().optional(),
 });
 const usuarioUpdateSchema = z.object({
   usuario: z.string().min(1).optional(),
   senha: z.string().min(6).optional().nullable(),
   role: z.enum(["admin", "manager", "user"]).optional(),
+  nome: z.string().optional().nullable(),
+  telefone: z.string().optional().nullable(),
+  email: z.preprocess((value) => (value === "" ? null : value), z.string().email().optional().nullable()),
   ativo: z.boolean().optional(),
 });
 
@@ -127,6 +144,21 @@ const planoCreateSchema = z.object({
   hotspotId: z.string().min(1),
 });
 const planoUpdateSchema = planoCreateSchema.partial();
+
+const cadastroTelaCreateSchema = z.object({
+  nome: z.string().min(1),
+  descricao: z.string().optional().nullable(),
+  coletarNome: z.boolean().optional(),
+  coletarEmail: z.boolean().optional(),
+  coletarEndereco: z.boolean().optional(),
+  coletarCidade: z.boolean().optional(),
+  coletarCep: z.boolean().optional(),
+  coletarTelefone: z.boolean().optional(),
+  coletarWhatsapp: z.boolean().optional(),
+  coletarCpf: z.boolean().optional(),
+  ativo: z.boolean().optional(),
+});
+const cadastroTelaUpdateSchema = cadastroTelaCreateSchema.partial();
 
 type CrudDelegate<TCreate, TUpdate> = {
   findMany(args?: unknown): Promise<unknown[]>;
@@ -276,7 +308,7 @@ export async function crudRoutes(app: FastifyInstance) {
   app.get("/usuarios", { preHandler: adminPreHandler }, async () =>
     prisma.admin.findMany({
       orderBy: { criadoEm: "desc" },
-      select: { id: true, usuario: true, role: true, ativo: true, criadoEm: true, atualizadoEm: true },
+      select: { id: true, usuario: true, nome: true, telefone: true, email: true, role: true, ativo: true, criadoEm: true, atualizadoEm: true },
     }),
   );
 
@@ -285,8 +317,16 @@ export async function crudRoutes(app: FastifyInstance) {
       const body = usuarioCreateSchema.parse(request.body);
       const senhaHash = await bcrypt.hash(body.senha, 10);
       return await prisma.admin.create({
-        data: { usuario: body.usuario, senhaHash, role: body.role, ativo: body.ativo ?? true },
-        select: { id: true, usuario: true, role: true, ativo: true, criadoEm: true, atualizadoEm: true },
+        data: {
+          usuario: body.usuario,
+          senhaHash,
+          role: body.role,
+          nome: body.nome,
+          telefone: body.telefone,
+          email: body.email,
+          ativo: body.ativo ?? true,
+        },
+        select: { id: true, usuario: true, nome: true, telefone: true, email: true, role: true, ativo: true, criadoEm: true, atualizadoEm: true },
       });
     } catch (error) {
       return sendCrudError(reply, error);
@@ -302,7 +342,7 @@ export async function crudRoutes(app: FastifyInstance) {
       return await prisma.admin.update({
         where: { id: params.id },
         data: { ...rest, ...(senha ? { senhaHash: await bcrypt.hash(senha, 10) } : {}) },
-        select: { id: true, usuario: true, role: true, ativo: true, criadoEm: true, atualizadoEm: true },
+        select: { id: true, usuario: true, nome: true, telefone: true, email: true, role: true, ativo: true, criadoEm: true, atualizadoEm: true },
       });
     } catch (error) {
       if (error instanceof Error && error.message.includes("ultimo administrador")) {
@@ -357,7 +397,7 @@ export async function crudRoutes(app: FastifyInstance) {
   });
 
   registerCrud(app, "/hotspots", prisma.hotspot, hotspotCreateSchema, hotspotUpdateSchema, {
-    include: { local: true, mikrotik: true, integracao: true, pagamentoIntegracao: true },
+    include: { local: true, mikrotik: true, integracao: true, pagamentoIntegracao: true, cadastroTela: true },
     orderBy: { criadoEm: "desc" },
   }, { roles: [AdminRole.ADMIN, AdminRole.MANAGER] });
 
@@ -392,7 +432,10 @@ export async function crudRoutes(app: FastifyInstance) {
   app.delete("/vouchers/:id", { preHandler: [app.authenticate, requireAnyRole(AdminRole.ADMIN, AdminRole.USER)] }, async (request, reply) => {
     try {
       const params = idParamsSchema.parse(request.params);
-      await prisma.acesso.updateMany({ where: { voucherId: params.id }, data: { voucherId: null } });
+      const voucher = await prisma.voucher.findUnique({ where: { id: params.id }, select: { usado: true } });
+      if (voucher?.usado) {
+        return reply.status(400).send({ error: "Voucher usado nao pode ser excluido." });
+      }
       return await prisma.voucher.delete({ where: { id: params.id } });
     } catch (error) {
       return sendCrudError(reply, error);
@@ -415,6 +458,7 @@ export async function crudRoutes(app: FastifyInstance) {
                   codigo: randomVoucherCode(body.prefixo),
                   tempoMinutos: body.tempoMinutos,
                   hotspotId: body.hotspotId,
+                  segmentacao: body.segmentacao,
                 },
               });
               break;
@@ -441,6 +485,22 @@ export async function crudRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post("/vouchers/:id/sell", { preHandler: [app.authenticate, requireAnyRole(AdminRole.ADMIN, AdminRole.USER)] }, async (request, reply) => {
+    try {
+      const params = idParamsSchema.parse(request.params);
+      return await prisma.voucher.update({
+        where: { id: params.id },
+        data: { vendido: true, vendidoEm: new Date() },
+      });
+    } catch (error) {
+      return sendCrudError(reply, error);
+    }
+  });
+
+  registerCrud(app, "/cadastros-telas", prisma.cadastroTela, cadastroTelaCreateSchema, cadastroTelaUpdateSchema, {
+    orderBy: { criadoEm: "desc" },
+  }, { roles: [AdminRole.ADMIN, AdminRole.MANAGER] });
+
   registerCrud(app, "/cpf-logins", prisma.cpfLogin, cpfLoginCreateSchema, cpfLoginUpdateSchema, {
     include: { hotspot: true },
     orderBy: { criadoEm: "desc" },
@@ -463,7 +523,7 @@ export async function crudRoutes(app: FastifyInstance) {
     const from = query.from ? new Date(`${query.from}T00:00:00`) : undefined;
     const to = query.to ? new Date(`${query.to}T23:59:59.999`) : undefined;
 
-    return prisma.compraAcesso.findMany({
+    const compras = await prisma.compraAcesso.findMany({
       where: {
         ...(query.hotspotId ? { hotspotId: query.hotspotId } : {}),
         ...(query.planoId ? { planoId: query.planoId } : {}),
@@ -480,5 +540,19 @@ export async function crudRoutes(app: FastifyInstance) {
       include: { hotspot: true, plano: true },
       orderBy: { criadoEm: "desc" },
     });
+
+    const leads = await prisma.leadContratacao.findMany({
+      where: {
+        ...(query.hotspotId ? { hotspotId: query.hotspotId } : {}),
+        ...(from || to ? { criadoEm: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
+      },
+      include: { hotspot: true, cadastroTela: true },
+      orderBy: { criadoEm: "desc" },
+    });
+
+    return [
+      ...leads.map((lead) => ({ ...lead, origem: "Quero contratar", status: "LEAD", plano: null })),
+      ...compras.map((compra) => ({ ...compra, origem: "Compra PIX" })),
+    ].sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   });
 }

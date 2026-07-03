@@ -17,7 +17,7 @@ describe("normalizePortalLoginBody", () => {
     ).toMatchObject({
       loginType: "voucher",
       hotspotSlug: "padrao",
-      voucher: "ABC 123",
+      voucher: "ABC123",
       linkLoginOnly: "http://10.0.0.1/login",
       linkLogin: "http://10.0.0.1/login",
       linkOrig: "http://example.com",

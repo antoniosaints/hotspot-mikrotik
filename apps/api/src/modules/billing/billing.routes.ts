@@ -15,7 +15,9 @@ const optionalEmailSchema = z.preprocess(
 
 const createPurchaseSchema = z.object({
   hotspotSlug: z.string().min(1),
-  planoId: z.string().min(1),
+  planoId: z.string().min(1).optional().nullable(),
+  personalizado: z.boolean().optional(),
+  tempoMinutos: z.number().int().positive().optional(),
   nome: z.string().optional().nullable(),
   telefone: z.string().optional().nullable(),
   email: optionalEmailSchema,
@@ -66,6 +68,14 @@ function publicBaseUrl(request: { protocol: string; hostname: string }) {
   return `${request.protocol}://${request.hostname}`;
 }
 
+function randomTempPaymentCode() {
+  return `PAY${randomTicketCode().replace(/[^A-Z0-9]/gi, "").slice(0, 9).toUpperCase()}`;
+}
+
+function isValidCustomStep(minutes: number, min: number, step: number) {
+  return (minutes - min) % step === 0;
+}
+
 async function releasePurchase(compraId: string) {
   const compra = await prisma.compraAcesso.findUnique({
     where: { id: compraId },
@@ -74,6 +84,14 @@ async function releasePurchase(compraId: string) {
 
   if (!compra || compra.status === "LIBERADO") {
     return compra;
+  }
+
+  const purchaseMinutes = compra.tempoMinutos ?? compra.plano?.tempoMinutos;
+  if (!purchaseMinutes || purchaseMinutes <= 0) {
+    return prisma.compraAcesso.update({
+      where: { id: compra.id },
+      data: { status: "FALHA_LIBERACAO", erroLiberacao: "Tempo da compra nao encontrado." },
+    });
   }
 
   const credentials = buildTicketCredentials(
@@ -88,7 +106,7 @@ async function releasePurchase(compraId: string) {
         compra.hotspot.mikrotik,
         credentials.username,
         credentials.password,
-        compra.plano.tempoMinutos,
+        purchaseMinutes,
         compra.hotspot.mikrotik.profilePadrao,
         "Hotspot COMPRA",
       );
@@ -101,7 +119,7 @@ async function releasePurchase(compraId: string) {
         mac: compra.mac,
         ip: compra.ip,
         loginEm: now,
-        expiraEm: addMinutes(now, compra.plano.tempoMinutos),
+        expiraEm: addMinutes(now, purchaseMinutes),
         status: AccessStatus.LIBERADO,
         hotspotId: compra.hotspotId,
         mikrotikId: compra.hotspot.mikrotikId,
@@ -135,12 +153,11 @@ export async function billingRoutes(app: FastifyInstance) {
         where: { slug: body.hotspotSlug },
         include: {
           pagamentoIntegracao: true,
-          planos: { where: { id: body.planoId, ativo: true }, take: 1 },
+          planos: { where: { id: body.planoId ?? "__custom__", ativo: true }, take: 1 },
         },
       });
 
-      const plano = hotspot?.planos[0];
-      if (!hotspot || !hotspot.ativo || !hotspot.compraOnline || !plano) {
+      if (!hotspot || !hotspot.ativo || !hotspot.compraOnline) {
         return reply.status(400).send({ error: "Compra de acesso indisponivel neste hotspot." });
       }
 
@@ -152,18 +169,57 @@ export async function billingRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: "Token do Mercado Pago nao configurado." });
       }
 
+      const plano = body.planoId ? hotspot.planos[0] : null;
+      const isCustomPurchase = !plano && body.personalizado === true;
+      if (body.planoId && !plano) {
+        return reply.status(400).send({ error: "Plano indisponivel neste hotspot." });
+      }
+
+      if (!plano && !isCustomPurchase) {
+        return reply.status(400).send({ error: "Selecione um plano ou tempo personalizado para comprar acesso." });
+      }
+
+      let purchaseName = plano?.nome ?? "Acesso personalizado";
+      let purchaseMinutes = plano?.tempoMinutos ?? 0;
+      let purchaseValue = plano?.valorCentavos ?? 0;
+
+      if (isCustomPurchase) {
+        const customMin = hotspot.tempoPersonalizadoMinimo;
+        const customMax = hotspot.tempoPersonalizadoMaximo;
+        const customStep = hotspot.tempoPersonalizadoPasso;
+        const customValue = hotspot.valorMinutoCentavos ?? 0;
+        const requestedMinutes = body.tempoMinutos ?? 0;
+
+        if (!hotspot.compraPersonalizada || customValue <= 0) {
+          return reply.status(400).send({ error: "Compra personalizada indisponivel neste hotspot." });
+        }
+
+        if (customMax < customMin || customStep <= 0) {
+          return reply.status(400).send({ error: "Configuracao de tempo personalizado invalida." });
+        }
+
+        if (requestedMinutes < customMin || requestedMinutes > customMax || !isValidCustomStep(requestedMinutes, customMin, customStep)) {
+          return reply.status(400).send({ error: "Tempo personalizado fora das opcoes permitidas." });
+        }
+
+        purchaseMinutes = requestedMinutes;
+        purchaseValue = requestedMinutes * customValue;
+        purchaseName = `Acesso personalizado ${requestedMinutes} min`;
+      }
+
       const buyer = normalizeBuyerFields({
-        nome: plano.coletarNome ? body.nome : null,
-        telefone: plano.coletarTelefone ? body.telefone : null,
-        email: plano.coletarEmail ? body.email : null,
-        cpf: plano.coletarCpf ? body.cpf : null,
-        endereco: plano.coletarEndereco ? body.endereco : null,
+        nome: plano?.coletarNome ? body.nome : null,
+        telefone: plano?.coletarTelefone ? body.telefone : null,
+        email: plano?.coletarEmail ? body.email : null,
+        cpf: plano?.coletarCpf ? body.cpf : null,
+        endereco: plano?.coletarEndereco ? body.endereco : null,
       });
 
       const compra = await prisma.compraAcesso.create({
         data: {
           status: "PENDENTE",
-          valorCentavos: plano.valorCentavos,
+          valorCentavos: purchaseValue,
+          tempoMinutos: purchaseMinutes,
           nome: buyer.nome,
           telefone: buyer.telefone,
           email: buyer.email,
@@ -172,7 +228,7 @@ export async function billingRoutes(app: FastifyInstance) {
           mac: body.mac,
           ip: body.ip,
           hotspotId: hotspot.id,
-          planoId: plano.id,
+          planoId: plano?.id,
           pagamentoIntegracaoId: hotspot.pagamentoIntegracao.id,
         },
       });
@@ -180,8 +236,8 @@ export async function billingRoutes(app: FastifyInstance) {
       const payment = await createPixPayment(
         { accessToken: hotspot.pagamentoIntegracao.token, webhookSecret: hotspot.pagamentoIntegracao.chaveWebhook },
         {
-          amountCentavos: plano.valorCentavos,
-          description: `${plano.nome} - ${hotspot.nome}`,
+          amountCentavos: purchaseValue,
+          description: `${purchaseName} - ${hotspot.nome}`,
           payerEmail: buyer.email,
           externalReference: compra.id,
           notificationUrl: `${publicBaseUrl(request)}/api/webhooks/mercado-pago`,
@@ -220,6 +276,64 @@ export async function billingRoutes(app: FastifyInstance) {
 
       if (!compra) return reply.status(404).send({ error: "Compra nao encontrada." });
       return compra;
+    } catch (error) {
+      if (error instanceof ZodError) return sendZodError(reply, error);
+      return sendCrudError(reply, error);
+    }
+  });
+
+  app.post("/portal/purchases/:id/temp-access", async (request, reply) => {
+    try {
+      const params = purchaseParamsSchema.parse(request.params);
+      const body = normalizeRouterLogin(request.body);
+      const compra = await prisma.compraAcesso.findUnique({
+        where: { id: params.id },
+        include: { hotspot: { include: { mikrotik: true } } },
+      });
+
+      if (!compra) {
+        return reply.status(404).send({ error: "Compra nao encontrada." });
+      }
+
+      const tempCode = randomTempPaymentCode();
+      const now = new Date();
+
+      if (compra.hotspot.mikrotik.ativo) {
+        await createHotspotUser(
+          compra.hotspot.mikrotik,
+          tempCode,
+          tempCode,
+          4,
+          compra.hotspot.mikrotik.profilePadrao,
+          "Hotspot COMPRA_PAGAMENTO",
+        );
+      }
+
+      await prisma.acesso.create({
+        data: {
+          tipo: LoginType.COMPRA,
+          codigo: tempCode,
+          mac: compra.mac,
+          ip: compra.ip,
+          loginEm: now,
+          expiraEm: addMinutes(now, 4),
+          status: AccessStatus.LIBERADO,
+          hotspotId: compra.hotspotId,
+          mikrotikId: compra.hotspot.mikrotikId,
+        },
+      });
+
+      const html = buildFinalLoginHtml({
+        linkLoginOnly: body.linkLoginOnly,
+        linkLogin: body.linkLogin,
+        username: tempCode,
+        password: tempCode,
+        dst: body.linkOrig,
+        chapId: body.chapId ?? decodeBase64(body.chapIdB64),
+        chapChallenge: body.chapChallenge ?? decodeBase64(body.chapChallengeB64),
+      });
+
+      return reply.type("text/html").send(html);
     } catch (error) {
       if (error instanceof ZodError) return sendZodError(reply, error);
       return sendCrudError(reply, error);

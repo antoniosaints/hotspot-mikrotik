@@ -128,11 +128,14 @@ export function buildMikrotikLoginHtml(baseUrl: string, hotspotSlug: string): st
 
       var chapId = "$(chap-id)";
       var chapChallenge = "$(chap-challenge)";
+      var hasChap = chapId && chapChallenge && chapId.indexOf("$(") !== 0 && chapChallenge.indexOf("$(") !== 0;
 
-      appendHidden("chap-id", chapId);
-      appendHidden("chap-challenge", chapChallenge);
+      if (hasChap) {
+        appendHidden("chap-id", chapId);
+        appendHidden("chap-challenge", chapChallenge);
+      }
 
-      if (typeof window.btoa === "function") {
+      if (hasChap && typeof window.btoa === "function") {
         try {
           appendHidden("chap-id-b64", window.btoa(chapId));
           appendHidden("chap-challenge-b64", window.btoa(chapChallenge));

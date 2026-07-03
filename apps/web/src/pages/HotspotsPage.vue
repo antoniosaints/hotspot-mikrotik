@@ -18,11 +18,12 @@ import { computed, onMounted, ref } from "vue";
 
 import CrudPage, { type CrudColumn, type CrudField } from "@/pages/CrudPage.vue";
 import { api } from "@/services/api";
-import type { Integracao, Local, Mikrotik } from "@/types/hotspot";
+import type { CadastroTela, Integracao, Local, Mikrotik } from "@/types/hotspot";
 
 const locais = ref<Local[]>([]);
 const mikrotiks = ref<Mikrotik[]>([]);
 const integracoes = ref<Integracao[]>([]);
+const cadastrosTelas = ref<CadastroTela[]>([]);
 const optionsLoading = ref(true);
 
 const columns: CrudColumn[] = [
@@ -32,6 +33,7 @@ const columns: CrudColumn[] = [
   { key: "mikrotik.nome", label: "MikroTik" },
   { key: "integracao.nome", label: "Integracao" },
   { key: "pagamentoIntegracao.nome", label: "Pagamento" },
+  { key: "cadastroTela.nome", label: "Quero contratar" },
   { key: "urlPosLogin", label: "Pos-login" },
   { key: "ativo", label: "Status", type: "boolean" },
 ];
@@ -80,6 +82,20 @@ const fields = computed<CrudField[]>(() => [
     type: "section",
     full: true,
     help: "Ative apenas as formas de login que devem aparecer para o cliente no portal.",
+  },
+  {
+    key: "cadastroTelaId",
+    label: "Tela do Quero contratar",
+    type: "select",
+    options: [
+      { label: "Desabilitado", value: "" },
+      ...cadastrosTelas.value
+        .filter((tela) => tela.ativo)
+        .map((tela) => ({ label: tela.nome, value: tela.id })),
+    ],
+    full: true,
+    help: "Formulario exibido quando o cliente toca em Quero contratar no portal.",
+    defaultValue: "",
   },
   {
     key: "loginVoucher",
@@ -135,7 +151,7 @@ const fields = computed<CrudField[]>(() => [
     label: "Compra online",
     type: "checkbox-card",
     defaultValue: false,
-    help: "Cliente escolhe um plano da bilheteria e paga via PIX.",
+    help: "Cliente escolhe um plano da bilheteria ou um tempo personalizado e paga via PIX.",
   },
   {
     key: "pagamentoIntegracaoId",
@@ -150,6 +166,51 @@ const fields = computed<CrudField[]>(() => [
     help: "Selecione Mercado Pago para habilitar compra online.",
     visibleWhen: (form) => Boolean(form.compraOnline),
     clearWhenHidden: true,
+  },
+  {
+    key: "compraPersonalizada",
+    label: "Compra personalizada",
+    type: "checkbox-card",
+    defaultValue: false,
+    help: "Mostra uma opcao no final da compra para o cliente escolher o tempo em um controle deslizante.",
+    visibleWhen: (form) => Boolean(form.compraOnline),
+  },
+  {
+    key: "valorMinutoCentavos",
+    label: "Valor por minuto (centavos)",
+    type: "number",
+    defaultValue: 10,
+    help: "Exemplo: 10 centavos por minuto gera R$ 6,00 em 60 minutos.",
+    visibleWhen: (form) => Boolean(form.compraOnline && form.compraPersonalizada),
+  },
+  {
+    key: "tempoPersonalizadoMinimo",
+    label: "Tempo minimo personalizado (min)",
+    type: "number",
+    defaultValue: 10,
+    visibleWhen: (form) => Boolean(form.compraOnline && form.compraPersonalizada),
+  },
+  {
+    key: "tempoPersonalizadoMaximo",
+    label: "Tempo maximo personalizado (min)",
+    type: "number",
+    defaultValue: 240,
+    visibleWhen: (form) => Boolean(form.compraOnline && form.compraPersonalizada),
+  },
+  {
+    key: "tempoPersonalizadoPasso",
+    label: "Incremento do slider (min)",
+    type: "number",
+    defaultValue: 10,
+    help: "Define de quantos em quantos minutos o cliente pode aumentar ou diminuir.",
+    visibleWhen: (form) => Boolean(form.compraOnline && form.compraPersonalizada),
+  },
+  {
+    key: "conexoesPersonalizado",
+    label: "Conexoes no personalizado",
+    type: "number",
+    defaultValue: 1,
+    visibleWhen: (form) => Boolean(form.compraOnline && form.compraPersonalizada),
   },
   {
     key: "section-status",
@@ -170,10 +231,11 @@ const createDisabledReason = computed(() => {
 
 onMounted(async () => {
   try {
-    [locais.value, mikrotiks.value, integracoes.value] = await Promise.all([
+    [locais.value, mikrotiks.value, integracoes.value, cadastrosTelas.value] = await Promise.all([
       api.get<Local[]>("/locais"),
       api.get<Mikrotik[]>("/mikrotiks"),
       api.get<Integracao[]>("/integracoes"),
+      api.get<CadastroTela[]>("/cadastros-telas"),
     ]);
   } finally {
     optionsLoading.value = false;

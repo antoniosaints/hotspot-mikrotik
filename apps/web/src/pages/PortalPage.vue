@@ -44,7 +44,7 @@
               </span>
             </button>
 
-            <button type="button" class="menu-btn" @click="openInfo('Cadastro de novos clientes ainda nao esta habilitado neste hotspot.')">
+            <button type="button" class="menu-btn" @click="openContract">
               <span class="icon"><Phone class="h-5 w-5" /></span>
               <span>
                 <strong>Quero contratar</strong>
@@ -107,10 +107,44 @@
         <div v-else-if="activeScreen === 'ixcNotFound'" class="screen active">
           <h2 class="title">Cadastro nao encontrado</h2>
           <p class="subtitle">Nao encontramos esse CPF/CNPJ na base. Voce pode contratar um plano ou comprar um acesso avulso.</p>
-          <button type="button" class="primary" @click="openInfo('Cadastro de novos clientes ainda nao esta habilitado neste hotspot.')">Quero contratar</button>
+          <button type="button" class="primary" @click="openContract">Quero contratar</button>
           <button v-if="portal?.loginTypes.compra" type="button" class="secondary" @click="openPurchase">Comprar acesso</button>
           <button type="button" class="secondary" @click="openLogin('ixc')">Voltar</button>
         </div>
+
+        <form v-else-if="activeScreen === 'contract'" class="screen active" @submit.prevent="submitContract">
+          <h2 class="title">Quero contratar</h2>
+          <p class="subtitle">{{ portal?.hotspot.cadastroTela?.descricao || "Preencha seus dados para nossa equipe entrar em contato." }}</p>
+
+          <template v-if="portal?.hotspot.cadastroTela">
+            <label v-if="portal.hotspot.cadastroTela.coletarNome" for="lead-name">Nome</label>
+            <input v-if="portal.hotspot.cadastroTela.coletarNome" id="lead-name" v-model="leadForm.nome" autocomplete="name" placeholder="Seu nome" />
+
+            <label v-if="portal.hotspot.cadastroTela.coletarEmail" for="lead-email">Email</label>
+            <input v-if="portal.hotspot.cadastroTela.coletarEmail" id="lead-email" v-model="leadForm.email" type="email" autocomplete="email" placeholder="email@exemplo.com" />
+
+            <label v-if="portal.hotspot.cadastroTela.coletarTelefone" for="lead-phone">Telefone</label>
+            <input v-if="portal.hotspot.cadastroTela.coletarTelefone" id="lead-phone" v-model="leadForm.telefone" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000" />
+
+            <label v-if="portal.hotspot.cadastroTela.coletarWhatsapp" for="lead-whatsapp">WhatsApp</label>
+            <input v-if="portal.hotspot.cadastroTela.coletarWhatsapp" id="lead-whatsapp" v-model="leadForm.whatsapp" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000" />
+
+            <label v-if="portal.hotspot.cadastroTela.coletarCpf" for="lead-cpf">CPF</label>
+            <input v-if="portal.hotspot.cadastroTela.coletarCpf" id="lead-cpf" :value="leadForm.cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" @input="updateLeadCpf" />
+
+            <label v-if="portal.hotspot.cadastroTela.coletarEndereco" for="lead-address">Endereco</label>
+            <input v-if="portal.hotspot.cadastroTela.coletarEndereco" id="lead-address" v-model="leadForm.endereco" autocomplete="street-address" placeholder="Rua, numero, bairro" />
+
+            <label v-if="portal.hotspot.cadastroTela.coletarCidade" for="lead-city">Cidade</label>
+            <input v-if="portal.hotspot.cadastroTela.coletarCidade" id="lead-city" v-model="leadForm.cidade" autocomplete="address-level2" placeholder="Cidade" />
+
+            <label v-if="portal.hotspot.cadastroTela.coletarCep" for="lead-zip">CEP</label>
+            <input v-if="portal.hotspot.cadastroTela.coletarCep" id="lead-zip" v-model="leadForm.cep" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000" />
+          </template>
+
+          <button class="primary" type="submit" :disabled="loading">{{ loading ? "Enviando..." : "Enviar cadastro" }}</button>
+          <button type="button" class="secondary" @click="goHome">Voltar</button>
+        </form>
 
         <div v-else-if="activeScreen === 'ixcInvoices'" class="screen active">
           <h2 class="title">Regularizar mensalidade</h2>
@@ -138,14 +172,24 @@
 
         <div v-else-if="activeScreen === 'ixcPayment'" class="screen active">
           <h2 class="title">Pagar mensalidade</h2>
-          <p class="subtitle">Liberamos 4 minutos de acesso para voce realizar o pagamento. Depois, toque em verificar pagamento.</p>
+          <p class="subtitle">Copie o PIX antes de liberar o acesso temporario para pagamento.</p>
 
           <img v-if="ixcPix?.imagemQrcode" class="pix-qr" :src="`data:image/png;base64,${ixcPix.imagemQrcode}`" alt="QR Code PIX" />
           <img v-else-if="ixcPix?.imageSrc" class="pix-qr" :src="ixcPix.imageSrc" alt="QR Code PIX" />
-          <textarea v-if="ixcPix?.pixCopiaECola" class="pix-code" readonly :value="ixcPix.pixCopiaECola"></textarea>
-          <button v-if="ixcPix?.pixCopiaECola" type="button" class="secondary" @click="copyIxcPix">Copiar PIX</button>
+          <textarea id="ixc-pix-code" v-if="ixcPix?.pixCopiaECola" class="pix-code" readonly :value="ixcPix.pixCopiaECola"></textarea>
+          <button v-if="ixcPix?.pixCopiaECola" type="button" class="secondary" @click="copyIxcPix">
+            {{ ixcPixCopied ? "PIX copiado" : "Copiar PIX" }}
+          </button>
 
-          <button class="primary" type="button" :disabled="loading" @click="recheckIxcPayment">
+          <div v-if="ixcPixCopied && !ixcTempAccessConfirmed" class="payment-warning">
+            <strong>Atenção: você terá apenas 4 minutos de internet.</strong>
+            <span>Use esse tempo para abrir o banco, pagar o PIX copiado e voltar para verificar o pagamento.</span>
+          </div>
+          <button v-if="ixcPixCopied && !ixcTempAccessConfirmed" class="primary" type="button" :disabled="loading" @click="confirmIxcTempAccess">
+            {{ loading ? "Liberando..." : "Confirmar e liberar 4 minutos" }}
+          </button>
+
+          <button v-if="ixcTempAccessConfirmed" class="primary" type="button" :disabled="loading" @click="recheckIxcPayment">
             {{ loading ? "Verificando..." : "Ja paguei, verificar acesso" }}
           </button>
           <button type="button" class="secondary" @click="goHome">Voltar</button>
@@ -179,6 +223,36 @@
               <span>{{ plan.tempoMinutos }} min · {{ plan.conexoesSimultaneas }} conexao(oes)</span>
               <b>{{ formatMoney(plan.valorCentavos) }}</b>
             </button>
+            <button
+              v-if="customPurchaseEnabled"
+              type="button"
+              class="plan-btn"
+              :class="{ selected: selectedPlanId === CUSTOM_PLAN_ID }"
+              @click="selectCustomPurchase"
+            >
+              <strong>Personalizado</strong>
+              <span>{{ customMinutes }} min · {{ customConnections }} conexao(oes)</span>
+              <b>{{ formatMoney(customPurchaseValue) }}</b>
+            </button>
+          </div>
+
+          <div v-if="selectedPlanId === CUSTOM_PLAN_ID" class="custom-purchase">
+            <div class="custom-purchase-head">
+              <strong>{{ customMinutes }} minutos</strong>
+              <b>{{ formatMoney(customPurchaseValue) }}</b>
+            </div>
+            <input
+              v-model.number="customMinutes"
+              class="range-input"
+              type="range"
+              :min="customMinMinutes"
+              :max="customMaxMinutes"
+              :step="customStepMinutes"
+            />
+            <div class="range-labels">
+              <span>{{ customMinMinutes }} min</span>
+              <span>{{ customMaxMinutes }} min</span>
+            </div>
           </div>
 
           <div v-if="selectedPlanNeedsForm" class="purchase-form">
@@ -204,17 +278,27 @@
 
         <div v-else-if="activeScreen === 'payment'" class="screen active">
           <h2 class="title">Pagamento PIX</h2>
-          <p class="subtitle">Pague o PIX abaixo. A liberacao acontece automaticamente apos a confirmacao.</p>
+          <p class="subtitle">Copie o PIX antes de liberar o acesso temporario para pagamento.</p>
 
           <img v-if="purchasePayment?.qrCodeBase64" class="pix-qr" :src="`data:image/png;base64,${purchasePayment.qrCodeBase64}`" alt="QR Code PIX" />
-          <textarea v-if="purchasePayment?.qrCode" class="pix-code" readonly :value="purchasePayment.qrCode"></textarea>
-          <button v-if="purchasePayment?.qrCode" class="secondary" type="button" @click="copyPix">Copiar PIX</button>
+          <textarea id="purchase-pix-code" v-if="purchasePayment?.qrCode" class="pix-code" readonly :value="purchasePayment.qrCode"></textarea>
+          <button v-if="purchasePayment?.qrCode" class="secondary" type="button" @click="copyPix">
+            {{ purchasePixCopied ? "PIX copiado" : "Copiar PIX" }}
+          </button>
 
-          <div class="payment-status">
+          <div v-if="purchasePixCopied && !purchaseTempAccessConfirmed" class="payment-warning">
+            <strong>Atenção: você terá apenas 4 minutos de internet.</strong>
+            <span>Use esse tempo para abrir o banco, pagar o PIX copiado e voltar para concluir o acesso.</span>
+          </div>
+          <button v-if="purchasePixCopied && !purchaseTempAccessConfirmed" class="primary" type="button" :disabled="loading" @click="confirmPurchaseTempAccess">
+            {{ loading ? "Liberando..." : "Confirmar e liberar 4 minutos" }}
+          </button>
+
+          <div v-if="purchaseTempAccessConfirmed" class="payment-status">
             <strong>Status:</strong> {{ purchaseStatusLabel }}
           </div>
 
-          <button class="primary" type="button" :disabled="purchaseStatus !== 'LIBERADO'" @click="finalizePurchaseLogin">
+          <button v-if="purchaseTempAccessConfirmed" class="primary" type="button" :disabled="purchaseStatus !== 'LIBERADO'" @click="finalizePurchaseLogin">
             {{ purchaseStatus === "LIBERADO" ? "Entrar agora" : "Aguardando pagamento..." }}
           </button>
           <button type="button" class="secondary" @click="goHome">Voltar</button>
@@ -234,7 +318,8 @@ import { CreditCard, Phone, RadioTower, Ticket, UserRound } from "lucide-vue-nex
 import { api, ApiError, apiUrl } from "@/services/api";
 import type { PortalInfo } from "@/types/hotspot";
 
-type LoginScreen = "home" | "voucher" | "cpf" | "ixc" | "ixcNotFound" | "ixcInvoices" | "ixcPayment" | "purchase" | "payment";
+const CUSTOM_PLAN_ID = "__custom__";
+type LoginScreen = "home" | "voucher" | "cpf" | "ixc" | "ixcNotFound" | "ixcInvoices" | "ixcPayment" | "purchase" | "payment" | "contract";
 type LoginTab = "voucher" | "cpf" | "ixc";
 
 const route = useRoute();
@@ -247,9 +332,12 @@ const cpf = ref("");
 const error = ref("");
 const loading = ref(false);
 const selectedPlanId = ref("");
+const customMinutes = ref(10);
 const purchaseId = ref("");
 const purchaseStatus = ref("");
 const purchasePayment = ref<{ qrCode: string | null; qrCodeBase64: string | null } | null>(null);
+const purchasePixCopied = ref(false);
+const purchaseTempAccessConfirmed = ref(false);
 let purchasePoll: number | undefined;
 const purchaseForm = reactive({
   nome: "",
@@ -258,6 +346,16 @@ const purchaseForm = reactive({
   cpf: "",
   endereco: "",
 });
+const leadForm = reactive({
+  nome: "",
+  email: "",
+  endereco: "",
+  cidade: "",
+  cep: "",
+  telefone: "",
+  whatsapp: "",
+  cpf: "",
+});
 const ixcInvoices = ref<Array<{ id: string; valor: string }>>([]);
 const selectedIxcInvoiceId = ref("");
 type IxcPix = { pixCopiaECola: string; qrCode: string; imagemQrcode: string; imageSrc: string };
@@ -265,9 +363,34 @@ type IxcPaymentState = {
   cpf: string;
   invoiceId: string;
   pix: IxcPix;
+  tempAccessHtml: string;
+  pixCopied: boolean;
+  tempAccessConfirmed: boolean;
   createdAt: number;
 };
 const ixcPix = ref<IxcPix | null>(null);
+const ixcPixCopied = ref(false);
+const ixcTempAccessConfirmed = ref(false);
+const ixcTempAccessHtml = ref("");
+type PurchasePaymentState = {
+  id: string;
+  status: string;
+  payment: { qrCode: string | null; qrCodeBase64: string | null };
+  pixCopied: boolean;
+  tempAccessConfirmed: boolean;
+  createdAt: number;
+};
+const routerParamKeys = [
+  "mac",
+  "ip",
+  "link-login",
+  "link-login-only",
+  "link-orig",
+  "chap-id",
+  "chap-challenge",
+  "chap-id-b64",
+  "chap-challenge-b64",
+] as const;
 
 const query = computed(() => route.query);
 const routerError = computed(() => (typeof query.value.error === "string" && query.value.error ? query.value.error : ""));
@@ -279,6 +402,16 @@ const tabs = computed(() => {
   return enabled;
 });
 const selectedPlan = computed(() => portal.value?.hotspot.planos.find((plan) => plan.id === selectedPlanId.value) ?? null);
+const customMinMinutes = computed(() => Math.max(1, portal.value?.hotspot.tempoPersonalizadoMinimo ?? 10));
+const configuredCustomMaxMinutes = computed(() => portal.value?.hotspot.tempoPersonalizadoMaximo ?? customMinMinutes.value);
+const customMaxMinutes = computed(() => Math.max(customMinMinutes.value, configuredCustomMaxMinutes.value));
+const customStepMinutes = computed(() => Math.max(1, portal.value?.hotspot.tempoPersonalizadoPasso ?? 10));
+const customConnections = computed(() => Math.max(1, portal.value?.hotspot.conexoesPersonalizado ?? 1));
+const customMinuteValue = computed(() => Math.max(0, portal.value?.hotspot.valorMinutoCentavos ?? 0));
+const customPurchaseEnabled = computed(() =>
+  Boolean(portal.value?.hotspot.compraPersonalizada && customMinuteValue.value > 0 && configuredCustomMaxMinutes.value >= customMinMinutes.value),
+);
+const customPurchaseValue = computed(() => customMinutes.value * customMinuteValue.value);
 const selectedPlanNeedsForm = computed(() =>
   Boolean(
     selectedPlan.value?.coletarNome ||
@@ -295,19 +428,61 @@ const purchaseStatusLabel = computed(() => {
   return "aguardando pagamento";
 });
 
-function queryValue(key: string): string | null {
-  const value = query.value[key];
-  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+function routerParamsStateKey(): string {
+  return `hotspot_router_params_${slug.value}`;
 }
 
-function compactPayload(payload: Record<string, string | null>): Record<string, string> {
+function readStoredRouterParams(): Record<string, string> {
+  const rawParams = sessionStorage.getItem(routerParamsStateKey());
+  if (!rawParams) return {};
+
+  try {
+    const parsed = JSON.parse(rawParams) as Record<string, string>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    sessionStorage.removeItem(routerParamsStateKey());
+    return {};
+  }
+}
+
+function saveRouterParams(): void {
+  const stored = readStoredRouterParams();
+  let changed = false;
+
+  for (const key of routerParamKeys) {
+    const value = query.value[key];
+    const normalized = Array.isArray(value) ? value[0] : value;
+    if (typeof normalized === "string" && normalized !== "" && !isRouterPlaceholder(normalized)) {
+      stored[key] = normalized;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    sessionStorage.setItem(routerParamsStateKey(), JSON.stringify(stored));
+  }
+}
+
+function queryValue(key: string): string | null {
+  const value = query.value[key];
+  const normalized = Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+  if (normalized && !isRouterPlaceholder(normalized)) return normalized;
+  const stored = readStoredRouterParams()[key] ?? null;
+  return stored && !isRouterPlaceholder(stored) ? stored : null;
+}
+
+function isRouterPlaceholder(value: string): boolean {
+  return value.trim().startsWith("$(");
+}
+
+function compactPayload<T extends Record<string, unknown>>(payload: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== null && value !== ""),
-  ) as Record<string, string>;
+  ) as Partial<T>;
 }
 
 function portalPayload(): Record<string, string> {
-  return compactPayload({
+  const payload = compactPayload({
     loginType: activeTab.value,
     hotspotSlug: slug.value,
     codigo: activeTab.value === "voucher" ? voucher.value : null,
@@ -330,38 +505,8 @@ function portalPayload(): Record<string, string> {
     "chap-id-b64": queryValue("chap-id-b64"),
     "chap-challenge-b64": queryValue("chap-challenge-b64"),
   });
-}
 
-function portalReturnUrl(): string {
-  const url = new URL(window.location.href);
-  url.searchParams.delete("portalError");
-  url.searchParams.delete("portalErrorCode");
-  return url.toString();
-}
-
-function submitNativePortalLogin(): void {
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = apiUrl("/portal/login");
-  form.style.display = "none";
-
-  const payload = {
-    ...portalPayload(),
-    nativeLogin: "1",
-    _nativeLogin: "1",
-    returnUrl: portalReturnUrl(),
-  };
-
-  for (const [name, value] of Object.entries(payload)) {
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = value;
-    form.appendChild(input);
-  }
-
-  document.body.appendChild(form);
-  form.submit();
+  return compactRouterLoginPayload(payload as Record<string, string>);
 }
 
 function formatCpfCnpj(value: string): string {
@@ -392,13 +537,34 @@ function openLogin(type: LoginTab): void {
 }
 
 function openPurchase(): void {
-  selectedPlanId.value = portal.value?.hotspot.planos[0]?.id ?? "";
+  resetCustomMinutes();
+  selectedPlanId.value = portal.value?.hotspot.planos[0]?.id ?? (customPurchaseEnabled.value ? CUSTOM_PLAN_ID : "");
   activeScreen.value = "purchase";
   error.value = "";
 }
 
-function openInfo(message: string): void {
-  error.value = message;
+function selectCustomPurchase(): void {
+  resetCustomMinutes();
+  selectedPlanId.value = CUSTOM_PLAN_ID;
+}
+
+function resetCustomMinutes(): void {
+  const min = customMinMinutes.value;
+  const max = customMaxMinutes.value;
+  const step = customStepMinutes.value;
+  const current = customMinutes.value < min || customMinutes.value > max ? min : customMinutes.value;
+  customMinutes.value = min + Math.round((current - min) / step) * step;
+  if (customMinutes.value < min) customMinutes.value = min;
+  if (customMinutes.value > max) customMinutes.value = max;
+}
+
+function openContract(): void {
+  error.value = "";
+  if (!portal.value?.hotspot.cadastroTela?.ativo) {
+    error.value = "Cadastro de novos clientes ainda nao esta habilitado neste hotspot.";
+    return;
+  }
+  activeScreen.value = "contract";
 }
 
 function goHome(): void {
@@ -411,12 +577,16 @@ function updatePurchaseCpf(event: Event): void {
   purchaseForm.cpf = formatCpfCnpj((event.target as HTMLInputElement).value);
 }
 
+function updateLeadCpf(event: Event): void {
+  leadForm.cpf = formatCpfCnpj((event.target as HTMLInputElement).value);
+}
+
 function formatMoney(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function purchaseRouterPayload(): Record<string, string> {
-  return compactPayload({
+  return compactRouterLoginPayload(compactPayload({
     linkLogin: queryValue("link-login"),
     linkLoginOnly: queryValue("link-login-only"),
     linkOrig: queryValue("link-orig"),
@@ -431,11 +601,41 @@ function purchaseRouterPayload(): Record<string, string> {
     "chap-challenge": queryValue("chap-challenge"),
     "chap-id-b64": queryValue("chap-id-b64"),
     "chap-challenge-b64": queryValue("chap-challenge-b64"),
-  });
+  }) as Record<string, string>);
+}
+
+function compactRouterLoginPayload(payload: Record<string, string>): Record<string, string> {
+  const hasPlainChap = Boolean(payload.linkLoginOnly && payload.chapId && payload.chapChallenge);
+  const hasDashedChap = Boolean(payload["link-login-only"] && payload["chap-id"] && payload["chap-challenge"]);
+  const hasPlainChapB64 = Boolean(payload.linkLoginOnly && payload.chapIdB64 && payload.chapChallengeB64);
+  const hasDashedChapB64 = Boolean(payload["link-login-only"] && payload["chap-id-b64"] && payload["chap-challenge-b64"]);
+
+  if (!hasPlainChap) {
+    delete payload.chapId;
+    delete payload.chapChallenge;
+  }
+  if (!hasDashedChap) {
+    delete payload["chap-id"];
+    delete payload["chap-challenge"];
+  }
+  if (!hasPlainChapB64) {
+    delete payload.chapIdB64;
+    delete payload.chapChallengeB64;
+  }
+  if (!hasDashedChapB64) {
+    delete payload["chap-id-b64"];
+    delete payload["chap-challenge-b64"];
+  }
+
+  return payload;
 }
 
 function ixcPaymentStateKey(): string {
   return `hotspot_ixc_payment_${slug.value}`;
+}
+
+function purchasePaymentStateKey(): string {
+  return `hotspot_purchase_payment_${slug.value}`;
 }
 
 function ixcPaymentReturnUrl(): string {
@@ -444,11 +644,21 @@ function ixcPaymentReturnUrl(): string {
   return url.toString();
 }
 
-function saveIxcPaymentState(pix: IxcPix): void {
+function purchasePaymentReturnUrl(): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set("purchasePayment", "1");
+  return url.toString();
+}
+
+function saveIxcPaymentState(): void {
+  if (!ixcPix.value) return;
   const state: IxcPaymentState = {
     cpf: cpf.value,
     invoiceId: selectedIxcInvoiceId.value,
-    pix,
+    pix: ixcPix.value,
+    tempAccessHtml: ixcTempAccessHtml.value,
+    pixCopied: ixcPixCopied.value,
+    tempAccessConfirmed: ixcTempAccessConfirmed.value,
     createdAt: Date.now(),
   };
   sessionStorage.setItem(ixcPaymentStateKey(), JSON.stringify(state));
@@ -465,6 +675,9 @@ function restoreIxcPaymentState(): boolean {
     cpf.value = state.cpf ?? cpf.value;
     selectedIxcInvoiceId.value = state.invoiceId;
     ixcPix.value = state.pix;
+    ixcTempAccessHtml.value = state.tempAccessHtml ?? "";
+    ixcPixCopied.value = Boolean(state.pixCopied);
+    ixcTempAccessConfirmed.value = Boolean(state.tempAccessConfirmed);
     activeTab.value = "ixc";
     activeScreen.value = "ixcPayment";
     return true;
@@ -478,18 +691,61 @@ function clearIxcPaymentState(): void {
   sessionStorage.removeItem(ixcPaymentStateKey());
 }
 
+function savePurchasePaymentState(): void {
+  if (!purchaseId.value || !purchasePayment.value) return;
+  const state: PurchasePaymentState = {
+    id: purchaseId.value,
+    status: purchaseStatus.value,
+    payment: purchasePayment.value,
+    pixCopied: purchasePixCopied.value,
+    tempAccessConfirmed: purchaseTempAccessConfirmed.value,
+    createdAt: Date.now(),
+  };
+  sessionStorage.setItem(purchasePaymentStateKey(), JSON.stringify(state));
+}
+
+function restorePurchasePaymentState(): boolean {
+  const rawState = sessionStorage.getItem(purchasePaymentStateKey());
+  if (!rawState) return false;
+
+  try {
+    const state = JSON.parse(rawState) as Partial<PurchasePaymentState>;
+    if (!state.id || !state.payment) return false;
+
+    purchaseId.value = state.id;
+    purchaseStatus.value = state.status ?? "PENDENTE";
+    purchasePayment.value = state.payment;
+    purchasePixCopied.value = Boolean(state.pixCopied);
+    purchaseTempAccessConfirmed.value = Boolean(state.tempAccessConfirmed);
+    activeScreen.value = "payment";
+    if (purchaseTempAccessConfirmed.value) startPurchasePolling();
+    return true;
+  } catch {
+    sessionStorage.removeItem(purchasePaymentStateKey());
+    return false;
+  }
+}
+
+function clearPurchasePaymentState(): void {
+  sessionStorage.removeItem(purchasePaymentStateKey());
+}
+
 async function createPurchase(): Promise<void> {
   if (!selectedPlanId.value) return;
   loading.value = true;
   error.value = "";
   try {
+    const isCustom = selectedPlanId.value === CUSTOM_PLAN_ID;
+    resetCustomMinutes();
     const response = await api.post<{
       id: string;
       status: string;
       payment: { qrCode: string | null; qrCodeBase64: string | null };
     }>("/portal/purchases", compactPayload({
       hotspotSlug: slug.value,
-      planoId: selectedPlanId.value,
+      planoId: isCustom ? null : selectedPlanId.value,
+      personalizado: isCustom,
+      tempoMinutos: isCustom ? customMinutes.value : null,
       nome: purchaseForm.nome,
       telefone: purchaseForm.telefone,
       email: purchaseForm.email,
@@ -502,10 +758,45 @@ async function createPurchase(): Promise<void> {
     purchaseId.value = response.id;
     purchaseStatus.value = response.status;
     purchasePayment.value = response.payment;
+    purchasePixCopied.value = false;
+    purchaseTempAccessConfirmed.value = false;
+    savePurchasePaymentState();
     activeScreen.value = "payment";
-    startPurchasePolling();
   } catch (requestError) {
     error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel gerar o PIX.";
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function submitContract(): Promise<void> {
+  if (!portal.value?.hotspot.cadastroTela) return;
+  loading.value = true;
+  error.value = "";
+  try {
+    const response = await api.post<{ message: string }>("/portal/leads", compactPayload({
+      hotspotSlug: slug.value,
+      nome: leadForm.nome,
+      email: leadForm.email,
+      endereco: leadForm.endereco,
+      cidade: leadForm.cidade,
+      cep: leadForm.cep,
+      telefone: leadForm.telefone,
+      whatsapp: leadForm.whatsapp,
+      cpf: leadForm.cpf,
+    }));
+    leadForm.nome = "";
+    leadForm.email = "";
+    leadForm.endereco = "";
+    leadForm.cidade = "";
+    leadForm.cep = "";
+    leadForm.telefone = "";
+    leadForm.whatsapp = "";
+    leadForm.cpf = "";
+    goHome();
+    error.value = response.message;
+  } catch (requestError) {
+    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel enviar seu cadastro.";
   } finally {
     loading.value = false;
   }
@@ -525,6 +816,7 @@ function startPurchasePolling(): void {
     try {
       const status = await api.get<{ status: string; erroLiberacao: string | null }>(`/portal/purchases/${purchaseId.value}/status`);
       purchaseStatus.value = status.status;
+      savePurchasePaymentState();
       if (status.status === "LIBERADO" || status.status === "FALHA_LIBERACAO") {
         stopPurchasePolling();
         if (status.erroLiberacao) error.value = status.erroLiberacao;
@@ -537,14 +829,47 @@ function startPurchasePolling(): void {
 
 async function copyPix(): Promise<void> {
   if (purchasePayment.value?.qrCode) {
-    await navigator.clipboard.writeText(purchasePayment.value.qrCode);
+    await copyText(purchasePayment.value.qrCode, "purchase-pix-code");
+    purchasePixCopied.value = true;
+    savePurchasePaymentState();
   }
 }
 
 async function copyIxcPix(): Promise<void> {
   if (ixcPix.value?.pixCopiaECola) {
-    await navigator.clipboard.writeText(ixcPix.value.pixCopiaECola);
+    await copyText(ixcPix.value.pixCopiaECola, "ixc-pix-code");
+    ixcPixCopied.value = true;
+    saveIxcPaymentState();
   }
+}
+
+async function copyText(text: string, elementId: string): Promise<void> {
+  error.value = "";
+
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+  } catch {
+    // Captive browsers often block clipboard access on HTTP.
+  }
+
+  const field = document.getElementById(elementId) as HTMLTextAreaElement | null;
+  if (field) {
+    field.focus();
+    field.select();
+    field.setSelectionRange(0, field.value.length);
+    try {
+      if (document.execCommand("copy")) {
+        return;
+      }
+    } catch {
+      // Manual copy message below.
+    }
+  }
+
+  error.value = "O navegador bloqueou a copia automatica. O codigo PIX foi selecionado; toque em Copiar no menu do celular.";
 }
 
 async function loadIxcInvoices(): Promise<void> {
@@ -591,12 +916,70 @@ async function generateIxcPix(): Promise<void> {
       ip: queryValue("ip"),
     });
     ixcPix.value = response.pix;
-    saveIxcPaymentState(response.pix);
-    document.open();
-    document.write(response.tempAccess.html);
-    document.close();
+    ixcTempAccessHtml.value = response.tempAccess.html;
+    ixcPixCopied.value = false;
+    ixcTempAccessConfirmed.value = false;
+    saveIxcPaymentState();
+    activeScreen.value = "ixcPayment";
   } catch (requestError) {
     error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel gerar o PIX da mensalidade.";
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function confirmIxcTempAccess(): Promise<void> {
+  if (!ixcPixCopied.value) return;
+  if (!ixcTempAccessHtml.value) {
+    error.value = "Nao foi possivel liberar o acesso temporario. Gere o PIX novamente.";
+    return;
+  }
+
+  loading.value = true;
+  error.value = "";
+  try {
+    ixcTempAccessConfirmed.value = true;
+    saveIxcPaymentState();
+    document.open();
+    document.write(ixcTempAccessHtml.value);
+    document.close();
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function confirmPurchaseTempAccess(): Promise<void> {
+  if (!purchaseId.value || !purchasePixCopied.value) return;
+  loading.value = true;
+  error.value = "";
+  const returnUrl = purchasePaymentReturnUrl();
+  try {
+    savePurchasePaymentState();
+    const response = await fetch(apiUrl(`/portal/purchases/${purchaseId.value}/temp-access`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/html,application/json" },
+      body: JSON.stringify({
+        ...purchaseRouterPayload(),
+        linkOrig: returnUrl,
+        "link-orig": returnUrl,
+      }),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      try {
+        const parsed = JSON.parse(text) as { error?: string; message?: string };
+        error.value = parsed.error ?? parsed.message ?? "Nao foi possivel liberar o acesso temporario.";
+      } catch {
+        error.value = text || "Nao foi possivel liberar o acesso temporario.";
+      }
+      return;
+    }
+
+    purchaseTempAccessConfirmed.value = true;
+    savePurchasePaymentState();
+    document.open();
+    document.write(text);
+    document.close();
   } finally {
     loading.value = false;
   }
@@ -650,6 +1033,7 @@ async function finalizePurchaseLogin(): Promise<void> {
       }
       return;
     }
+    clearPurchasePaymentState();
     document.open();
     document.write(text);
     document.close();
@@ -661,35 +1045,56 @@ async function finalizePurchaseLogin(): Promise<void> {
 async function submit(): Promise<void> {
   loading.value = true;
   error.value = "";
-  submitNativePortalLogin();
+  try {
+    const response = await fetch(apiUrl("/portal/login"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/html,application/json" },
+      body: JSON.stringify(portalPayload()),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      try {
+        const parsed = JSON.parse(text) as { error?: string; message?: string; code?: string };
+        if (activeTab.value === "ixc" && parsed.code === "CLIENTE_NAO_ENCONTRADO") {
+          error.value = "";
+          activeScreen.value = "ixcNotFound";
+          return;
+        }
+        if (activeTab.value === "ixc" && parsed.code === "CLIENTE_COM_DEBITOS") {
+          await loadIxcInvoices();
+          return;
+        }
+        error.value = parsed.error ?? parsed.message ?? "Nao foi possivel autenticar.";
+      } catch {
+        error.value = text || "Nao foi possivel autenticar.";
+      }
+      return;
+    }
+
+    document.open();
+    document.write(text);
+    document.close();
+  } finally {
+    loading.value = false;
+  }
 }
 
 onMounted(async () => {
   try {
+    saveRouterParams();
     voucher.value = queryValue("voucher") ?? queryValue("codigo") ?? "";
     cpf.value = formatCpfCnpj(queryValue("cpf") ?? "");
-    const portalError = queryValue("portalError");
-    const portalErrorCode = queryValue("portalErrorCode");
 
     portal.value = await api.get<PortalInfo>(`/portal/${encodeURIComponent(slug.value)}`);
-    selectedPlanId.value = portal.value.hotspot.planos[0]?.id ?? "";
+    resetCustomMinutes();
+    selectedPlanId.value = portal.value.hotspot.planos[0]?.id ?? (customPurchaseEnabled.value ? CUSTOM_PLAN_ID : "");
 
     if (queryValue("ixcPayment") === "1" && restoreIxcPaymentState()) {
       return;
     }
 
-    if (portalError) {
-      error.value = portalError;
-      if (portalErrorCode === "CLIENTE_NAO_ENCONTRADO") {
-        activeScreen.value = "ixcNotFound";
-        activeTab.value = "ixc";
-        return;
-      }
-      if (portalErrorCode === "CLIENTE_COM_DEBITOS") {
-        activeTab.value = "ixc";
-        await loadIxcInvoices();
-        return;
-      }
+    if (queryValue("purchasePayment") === "1" && restorePurchasePaymentState()) {
+      return;
     }
 
     if (cpf.value && portal.value.loginTypes.cpf) {
@@ -847,6 +1252,54 @@ onBeforeUnmount(stopPurchasePolling);
   margin-top: 12px;
 }
 
+.custom-purchase {
+  margin-top: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  background: #f8fbff;
+  padding: 14px;
+}
+
+.custom-purchase-head,
+.range-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.custom-purchase-head strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.custom-purchase-head b {
+  color: #004aad;
+  font-size: 18px;
+}
+
+.range-input {
+  height: 36px;
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  accent-color: #0077ff;
+}
+
+.range-input:focus {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.range-labels {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .pix-qr {
   width: 210px;
   height: 210px;
@@ -857,10 +1310,22 @@ onBeforeUnmount(stopPurchasePolling);
 .pix-code {
   width: 100%;
   min-height: 110px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #bfdbfe;
   border-radius: 14px;
   padding: 12px;
-  font-size: 12px;
+  background: #f8fbff;
+  color: #0f172a;
+  font-size: 16px;
+  line-height: 1.45;
+  word-break: break-all;
+  resize: vertical;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  -webkit-text-size-adjust: 100%;
+}
+
+.pix-code:focus {
+  border-color: #0ea5e9;
+  outline: 3px solid rgba(14, 165, 233, 0.18);
 }
 
 .payment-status {
@@ -870,6 +1335,28 @@ onBeforeUnmount(stopPurchasePolling);
   padding: 12px;
   color: #0f172a;
   font-size: 13px;
+}
+
+.payment-warning {
+  margin-top: 14px;
+  border: 2px solid #f59e0b;
+  border-radius: 16px;
+  background: #fffbeb;
+  padding: 14px;
+  color: #78350f;
+  font-size: 15px;
+  line-height: 1.35;
+  box-shadow: 0 12px 28px rgba(245, 158, 11, 0.18);
+}
+
+.payment-warning strong,
+.payment-warning span {
+  display: block;
+}
+
+.payment-warning strong {
+  margin-bottom: 6px;
+  font-size: 16px;
 }
 
 .menu-btn {

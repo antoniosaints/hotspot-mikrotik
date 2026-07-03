@@ -27,17 +27,13 @@ export function buildMd5JsUrl(linkLoginOnly: string): string {
 }
 
 export function buildFinalLoginHtml(input: FinalLoginHtmlInput): string {
-  const linkLoginOnly = input.linkLoginOnly?.trim();
-  const linkLogin = input.linkLogin?.trim();
-  const chapId = input.chapId?.trim();
-  const chapChallenge = input.chapChallenge?.trim();
+  const linkLoginOnly = cleanRouterValue(input.linkLoginOnly);
+  const linkLogin = cleanRouterValue(input.linkLogin);
+  const chapId = cleanRouterValue(input.chapId);
+  const chapChallenge = cleanRouterValue(input.chapChallenge);
   const dst = input.dst?.trim() ?? "";
 
-  if (chapId || chapChallenge) {
-    if (!chapId || !chapChallenge || !linkLoginOnly) {
-      throw new Error("Login CHAP incompleto: linkLoginOnly, chapId e chapChallenge sao obrigatorios.");
-    }
-
+  if (chapId && chapChallenge && linkLoginOnly) {
     const md5Url = buildMd5JsUrl(linkLoginOnly);
 
     return `<!doctype html>
@@ -86,4 +82,10 @@ export function buildFinalLoginHtml(input: FinalLoginHtmlInput): string {
   <script>document.getElementById("sendin").submit();</script>
 </body>
 </html>`;
+}
+
+function cleanRouterValue(value: string | null | undefined) {
+  const cleaned = value?.trim();
+  if (!cleaned || cleaned.startsWith("$(")) return undefined;
+  return cleaned;
 }

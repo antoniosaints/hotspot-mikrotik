@@ -61,7 +61,7 @@
                 <Button size="icon" variant="ghost" aria-label="Editar" @click="openEdit(item)">
                   <Pencil class="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" aria-label="Apagar" @click="removeItem(item)">
+                <Button v-if="canDelete(item)" size="icon" variant="ghost" aria-label="Apagar" @click="removeItem(item)">
                   <Trash2 class="h-4 w-4 text-destructive" />
                 </Button>
               </div>
@@ -188,6 +188,7 @@ const props = defineProps<{
   createDisabled?: boolean;
   createDisabledReason?: string;
   modalWidthClass?: string;
+  deletableWhen?: (item: CrudRecord) => boolean;
 }>();
 
 const items = ref<CrudRecord[]>([]);
@@ -315,6 +316,7 @@ async function submitForm(): Promise<void> {
 }
 
 async function removeItem(item: CrudRecord): Promise<void> {
+  if (!canDelete(item)) return;
   const name = String(readValue(item, "nome") ?? readValue(item, "codigo") ?? item.id);
   if (!window.confirm(`Apagar ${name}?`)) return;
 
@@ -325,6 +327,10 @@ async function removeItem(item: CrudRecord): Promise<void> {
   } catch (requestError) {
     error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel apagar o registro.";
   }
+}
+
+function canDelete(item: CrudRecord): boolean {
+  return props.deletableWhen ? props.deletableWhen(item) : true;
 }
 
 watch(

@@ -7,9 +7,20 @@
     endpoint="/vouchers"
     :columns="columns"
     :fields="fields"
+    :deletable-when="canDeleteVoucher"
     :create-disabled="hotspotsLoading || hotspots.length === 0"
     :create-disabled-reason="createDisabledReason"
   >
+    <template #row-actions="{ item, reload }">
+      <Button
+        v-if="!item.vendido"
+        size="sm"
+        variant="secondary"
+        @click="markSold(String(item.id), reload)"
+      >
+        Marcar vendido
+      </Button>
+    </template>
     <template #toolbar>
       <Button variant="secondary" :disabled="batchUnavailable" :title="createDisabledReason" @click="batchOpen = true">
         <Plus class="h-4 w-4" />
@@ -45,6 +56,10 @@
           <Label for="tempoMinutos">Tempo (minutos)</Label>
           <Input id="tempoMinutos" v-model="batch.tempoMinutos" class="mt-2" min="1" type="number" />
         </div>
+        <div>
+          <Label for="segmentacao">Segmentacao</Label>
+          <Input id="segmentacao" v-model="batch.segmentacao" class="mt-2" placeholder="Evento, vendedor, ponto de venda" />
+        </div>
       </div>
     </form>
     <template #footer>
@@ -66,7 +81,7 @@ import Dialog from "@/components/ui/Dialog.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
-import CrudPage, { type CrudColumn, type CrudField } from "@/pages/CrudPage.vue";
+import CrudPage, { type CrudColumn, type CrudField, type CrudRecord } from "@/pages/CrudPage.vue";
 import { api, ApiError } from "@/services/api";
 import type { Hotspot } from "@/types/hotspot";
 
@@ -79,6 +94,7 @@ const error = ref("");
 const batch = reactive({
   hotspotId: "",
   prefixo: "",
+  segmentacao: "",
   quantidade: 10,
   tempoMinutos: 60,
 });
@@ -87,6 +103,8 @@ const columns: CrudColumn[] = [
   { key: "codigo", label: "Codigo" },
   { key: "hotspot.nome", label: "Hotspot" },
   { key: "tempoMinutos", label: "Min" },
+  { key: "segmentacao", label: "Segmentacao" },
+  { key: "vendido", label: "Vendido", type: "boolean" },
   { key: "usado", label: "Status", type: "status" },
   { key: "mac", label: "MAC" },
   { key: "ip", label: "IP" },
@@ -96,6 +114,7 @@ const columns: CrudColumn[] = [
 const fields = computed<CrudField[]>(() => [
   { key: "codigo", label: "Codigo", type: "text" },
   { key: "tempoMinutos", label: "Tempo (minutos)", type: "number", defaultValue: 60 },
+  { key: "segmentacao", label: "Segmentacao", type: "text", defaultValue: null, placeholder: "Evento, vendedor, ponto de venda" },
   {
     key: "hotspotId",
     label: "Hotspot",
@@ -103,6 +122,8 @@ const fields = computed<CrudField[]>(() => [
     options: hotspots.value.map((hotspot) => ({ label: hotspot.nome, value: hotspot.id })),
   },
   { key: "usado", label: "Usado", type: "checkbox", defaultValue: false },
+  { key: "vendido", label: "Vendido", type: "checkbox", defaultValue: false },
+  { key: "vendidoEm", label: "Vendido em", type: "text", defaultValue: null, help: "Preenchido automaticamente ao marcar como vendido." },
   { key: "mac", label: "MAC", type: "text", defaultValue: null },
   { key: "ip", label: "IP", type: "text", defaultValue: null },
   { key: "usadoEm", label: "Usado em", type: "text", defaultValue: null, help: "Use formato ISO ou deixe vazio." },
@@ -127,6 +148,7 @@ async function generateBatch(): Promise<void> {
     await api.post("/vouchers/generate", {
       hotspotId: batch.hotspotId,
       prefixo: batch.prefixo,
+      segmentacao: batch.segmentacao,
       quantidade: Number(batch.quantidade),
       tempoMinutos: Number(batch.tempoMinutos),
     });
@@ -136,6 +158,20 @@ async function generateBatch(): Promise<void> {
     error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel gerar os vouchers.";
   } finally {
     saving.value = false;
+  }
+}
+
+function canDeleteVoucher(item: CrudRecord): boolean {
+  return !item.usado;
+}
+
+async function markSold(id: string, reload: () => Promise<void>): Promise<void> {
+  error.value = "";
+  try {
+    await api.post(`/vouchers/${id}/sell`);
+    await reload();
+  } catch (requestError) {
+    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel marcar o voucher como vendido.";
   }
 }
 

@@ -4,7 +4,7 @@
       <div>
         <p class="text-xs font-medium uppercase tracking-[0.18em] text-accent">Comercial</p>
         <h2 class="mt-1 text-2xl font-semibold tracking-tight">Prospeccoes</h2>
-        <p class="mt-1 text-sm text-muted-foreground">Compradores que preencheram dados durante a compra de tickets.</p>
+        <p class="mt-1 text-sm text-muted-foreground">Contatos capturados em compras de tickets e no Quero contratar.</p>
       </div>
       <Button variant="secondary" @click="loadItems">
         <RefreshCw class="h-4 w-4" />
@@ -19,6 +19,7 @@
         <thead class="bg-muted/60">
           <tr>
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">Contato</th>
+            <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">Origem</th>
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">CPF</th>
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">Endereco</th>
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">Plano</th>
@@ -28,16 +29,17 @@
         </thead>
         <tbody class="divide-y divide-border">
           <tr v-if="items.length === 0">
-            <td colspan="6" class="px-4 py-10 text-center text-sm text-muted-foreground">Nenhuma prospeccao encontrada.</td>
+            <td colspan="7" class="px-4 py-10 text-center text-sm text-muted-foreground">Nenhuma prospeccao encontrada.</td>
           </tr>
           <tr v-for="item in items" :key="item.id">
             <td class="px-4 py-3 text-sm">
               <div class="font-medium">{{ item.nome ?? "-" }}</div>
-              <div class="text-xs text-muted-foreground">{{ item.telefone ?? "-" }} / {{ item.email ?? "-" }}</div>
+              <div class="text-xs text-muted-foreground">{{ item.telefone ?? item.whatsapp ?? "-" }} / {{ item.email ?? "-" }}</div>
             </td>
+            <td class="px-4 py-3 text-sm">{{ item.origem ?? "Compra PIX" }}</td>
             <td class="px-4 py-3 text-sm">{{ item.cpf ?? "-" }}</td>
-            <td class="px-4 py-3 text-sm">{{ item.endereco ?? "-" }}</td>
-            <td class="px-4 py-3 text-sm">{{ item.plano?.nome ?? "-" }} / {{ item.hotspot?.nome ?? "-" }}</td>
+            <td class="px-4 py-3 text-sm">{{ [item.endereco, item.cidade, item.cep].filter(Boolean).join(" / ") || "-" }}</td>
+            <td class="px-4 py-3 text-sm">{{ item.plano?.nome ?? (item.tempoMinutos ? `Personalizado ${item.tempoMinutos} min` : "-") }} / {{ item.hotspot?.nome ?? "-" }}</td>
             <td class="px-4 py-3"><Badge>{{ item.status }}</Badge></td>
             <td class="px-4 py-3 text-sm">{{ formatDate(item.criadoEm) }}</td>
           </tr>
