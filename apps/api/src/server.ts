@@ -31,7 +31,7 @@ export function buildServer() {
   });
 
   app.register(cors, {
-    origin: config.webOrigin,
+    origin: config.webOrigins,
     credentials: true,
   });
   app.register(sensible);

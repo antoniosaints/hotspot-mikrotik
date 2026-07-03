@@ -10,6 +10,13 @@ describe("buildServer", () => {
       expect(health.statusCode).toBe(200);
       expect(health.json()).toEqual({ ok: true });
 
+      const corsHealth = await app.inject({
+        method: "GET",
+        url: "/health",
+        headers: { origin: "http://localhost:5173" },
+      });
+      expect(corsHealth.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+
       const dashboard = await app.inject({ method: "GET", url: "/api/dashboard" });
       expect(dashboard.statusCode).toBe(401);
       expect(dashboard.json()).toEqual({ error: "Token invalido ou ausente." });
