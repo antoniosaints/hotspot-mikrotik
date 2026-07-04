@@ -31,8 +31,23 @@ export function buildServer() {
   });
 
   app.register(cors, {
-    origin: "*",
-    credentials: false,
+    origin: (origin, cb) => {
+      // permite requests sem origin (postman, app, curl)
+      if (!origin) {
+        cb(null, true);
+        return;
+      }
+
+      // libera apenas esse domínio
+      if (origin.endsWith('.cas.net.br')) {
+        cb(null, true);
+        return;
+      }
+
+      cb(new Error("CORS bloqueado"), false);
+    },
+
+    credentials: true,
   });
   app.register(sensible);
   app.register(jwt, {
