@@ -25,6 +25,10 @@ declare module "@fastify/jwt" {
   }
 }
 
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
+  : [];
+
 export function buildServer() {
   const app = Fastify({
     logger: process.env.NODE_ENV !== "test",
@@ -38,8 +42,13 @@ export function buildServer() {
         return;
       }
 
+      if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
+        cb(null, true);
+        return;
+      }
+
       // libera apenas esse domínio
-      if (origin.endsWith('.cas.net.br')) {
+      if (origin.endsWith(".cas.net.br")) {
         cb(null, true);
         return;
       }
