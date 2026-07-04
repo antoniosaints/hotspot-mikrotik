@@ -5,14 +5,14 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [vue()],
-  server: {
-    proxy: {
-      "/api": {
-        target: "https://hotspot.cas.net.br",
-        changeOrigin: true,
-      },
-    },
-  },
+  // server: {
+  //   proxy: {
+  //     "/api": {
+  //       target: "https://apihotspot.cas.net.br",
+  //       changeOrigin: true,
+  //     },
+  //   },
+  // },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
