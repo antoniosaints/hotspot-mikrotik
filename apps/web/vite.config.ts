@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:3333",
+        target: "https://hotspot.cas.net.br",
         changeOrigin: true,
       },
     },
