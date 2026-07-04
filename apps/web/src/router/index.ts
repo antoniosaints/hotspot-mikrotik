@@ -49,7 +49,7 @@ const router = createRouter({
           path: "locais",
           name: "locais",
           component: LocaisPage,
-          meta: { title: "Locais", requiresAuth: true, roles: ["admin", "user"] },
+          meta: { title: "Locais", requiresAuth: true, roles: ["admin", "manager"] },
         },
         {
           path: "mikrotiks",

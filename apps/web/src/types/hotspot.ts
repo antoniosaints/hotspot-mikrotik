@@ -32,6 +32,7 @@ export type CadastroTela = EntityBase & {
   coletarTelefone: boolean;
   coletarWhatsapp: boolean;
   coletarCpf: boolean;
+  bonusTempoMinutos: number;
   ativo: boolean;
 };
 
@@ -137,7 +138,7 @@ export type CpfLogin = EntityBase & {
   hotspot?: Hotspot;
 };
 
-export type LoginType = "VOUCHER" | "CPF" | "IXC" | "COMPRA";
+export type LoginType = "VOUCHER" | "CPF" | "IXC" | "COMPRA" | "CONTRATACAO";
 
 export type Acesso = EntityBase & {
   tipo: LoginType;

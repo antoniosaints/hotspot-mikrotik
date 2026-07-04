@@ -156,6 +156,7 @@ const cadastroTelaCreateSchema = z.object({
   coletarTelefone: z.boolean().optional(),
   coletarWhatsapp: z.boolean().optional(),
   coletarCpf: z.boolean().optional(),
+  bonusTempoMinutos: z.number().int().min(0).optional(),
   ativo: z.boolean().optional(),
 });
 const cadastroTelaUpdateSchema = cadastroTelaCreateSchema.partial();
@@ -198,14 +199,16 @@ function registerCrud<TCreate, TUpdate>(
   createSchema: z.ZodType<TCreate>,
   updateSchema: z.ZodType<TUpdate>,
   listArgs?: unknown,
-  options: { skipDelete?: boolean; roles?: AdminRole[] } = {},
+  options: { skipDelete?: boolean; roles?: AdminRole[]; readRoles?: AdminRole[]; writeRoles?: AdminRole[] } = {},
 ) {
-  const roleGuard = requireAnyRole(...(options.roles ?? [AdminRole.ADMIN]));
-  const preHandler = [app.authenticate, roleGuard];
+  const writeRoles = options.writeRoles ?? options.roles ?? [AdminRole.ADMIN];
+  const readRoles = options.readRoles ?? writeRoles;
+  const readPreHandler = [app.authenticate, requireAnyRole(...readRoles)];
+  const writePreHandler = [app.authenticate, requireAnyRole(...writeRoles)];
 
-  app.get(path, { preHandler }, async () => delegate.findMany(listArgs));
+  app.get(path, { preHandler: readPreHandler }, async () => delegate.findMany(listArgs));
 
-  app.post(path, { preHandler }, async (request, reply) => {
+  app.post(path, { preHandler: writePreHandler }, async (request, reply) => {
     try {
       return await delegate.create({ data: createSchema.parse(request.body) });
     } catch (error) {
@@ -213,7 +216,7 @@ function registerCrud<TCreate, TUpdate>(
     }
   });
 
-  app.put(`${path}/:id`, { preHandler }, async (request, reply) => {
+  app.put(`${path}/:id`, { preHandler: writePreHandler }, async (request, reply) => {
     try {
       const params = idParamsSchema.parse(request.params);
       return await delegate.update({ where: { id: params.id }, data: updateSchema.parse(request.body) });
@@ -223,7 +226,7 @@ function registerCrud<TCreate, TUpdate>(
   });
 
   if (!options.skipDelete) {
-    app.delete(`${path}/:id`, { preHandler }, async (request, reply) => {
+    app.delete(`${path}/:id`, { preHandler: writePreHandler }, async (request, reply) => {
       try {
         const params = idParamsSchema.parse(request.params);
         return await delegate.delete({ where: { id: params.id } });
@@ -264,7 +267,7 @@ async function assertNotRemovingLastAdmin(id: string, data: { role?: string; ati
 export async function crudRoutes(app: FastifyInstance) {
   registerCrud(app, "/locais", prisma.local, localCreateSchema, localUpdateSchema, {
     orderBy: { criadoEm: "desc" },
-  }, { roles: [AdminRole.ADMIN, AdminRole.USER] });
+  }, { roles: [AdminRole.ADMIN, AdminRole.MANAGER] });
 
   registerCrud(app, "/mikrotiks", prisma.mikrotik, mikrotikCreateSchema, mikrotikUpdateSchema, {
     orderBy: { criadoEm: "desc" },
@@ -400,6 +403,13 @@ export async function crudRoutes(app: FastifyInstance) {
     include: { local: true, mikrotik: true, integracao: true, pagamentoIntegracao: true, cadastroTela: true },
     orderBy: { criadoEm: "desc" },
   }, { roles: [AdminRole.ADMIN, AdminRole.MANAGER] });
+
+  app.get("/hotspots-options", { preHandler: [app.authenticate, requireAnyRole(AdminRole.ADMIN, AdminRole.MANAGER, AdminRole.USER)] }, async () =>
+    prisma.hotspot.findMany({
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true, localId: true, mikrotikId: true, ativo: true },
+    }),
+  );
 
   app.get("/hotspots/:id/:file-html", { preHandler: managerPreHandler }, async (request, reply) => {
     try {

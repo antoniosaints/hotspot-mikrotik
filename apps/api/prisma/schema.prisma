@@ -96,6 +96,7 @@ model CadastroTela {
   coletarTelefone Boolean  @default(false)
   coletarWhatsapp Boolean  @default(false)
   coletarCpf      Boolean  @default(false)
+  bonusTempoMinutos Int     @default(0)
   ativo           Boolean  @default(true)
   criadoEm        DateTime @default(now())
   atualizadoEm    DateTime @updatedAt

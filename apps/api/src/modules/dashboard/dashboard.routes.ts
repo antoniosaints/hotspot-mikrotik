@@ -19,6 +19,8 @@ const disconnectParamsSchema = z.object({
 
 const disconnectBodySchema = z.object({
   activeId: z.string().min(1),
+  username: z.string().optional(),
+  removeUser: z.boolean().optional(),
 });
 
 function startOfDay(date: Date) {
@@ -240,6 +242,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
         const body = disconnectBodySchema.parse(request.body);
         const mikrotik = await prisma.mikrotik.findUniqueOrThrow({ where: { id: params.mikrotikId } });
         await disconnectActiveHotspotClient(mikrotik, body.activeId);
+        if (body.removeUser && body.username) {
+          await removeHotspotUser(mikrotik, body.username);
+        }
         return reply.send({ ok: true });
       } catch (error) {
         if (error instanceof ZodError) {

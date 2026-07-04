@@ -202,6 +202,10 @@ export async function billingRoutes(app: FastifyInstance) {
           return reply.status(400).send({ error: "Tempo personalizado fora das opcoes permitidas." });
         }
 
+        if (!body.email) {
+          return reply.status(400).send({ error: "Email obrigatorio para gerar o PIX da compra personalizada." });
+        }
+
         purchaseMinutes = requestedMinutes;
         purchaseValue = requestedMinutes * customValue;
         purchaseName = `Acesso personalizado ${requestedMinutes} min`;
@@ -210,7 +214,7 @@ export async function billingRoutes(app: FastifyInstance) {
       const buyer = normalizeBuyerFields({
         nome: plano?.coletarNome ? body.nome : null,
         telefone: plano?.coletarTelefone ? body.telefone : null,
-        email: plano?.coletarEmail ? body.email : null,
+        email: plano?.coletarEmail || isCustomPurchase ? body.email : null,
         cpf: plano?.coletarCpf ? body.cpf : null,
         endereco: plano?.coletarEndereco ? body.endereco : null,
       });

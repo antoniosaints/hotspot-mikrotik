@@ -262,8 +262,8 @@
             <label v-if="selectedPlan?.coletarTelefone" for="purchase-phone">Telefone</label>
             <input v-if="selectedPlan?.coletarTelefone" id="purchase-phone" v-model="purchaseForm.telefone" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000" />
 
-            <label v-if="selectedPlan?.coletarEmail" for="purchase-email">Email</label>
-            <input v-if="selectedPlan?.coletarEmail" id="purchase-email" v-model="purchaseForm.email" type="email" autocomplete="email" placeholder="email@exemplo.com" />
+            <label v-if="selectedPlan?.coletarEmail || isCustomPurchaseSelected" for="purchase-email">Email</label>
+            <input v-if="selectedPlan?.coletarEmail || isCustomPurchaseSelected" id="purchase-email" v-model="purchaseForm.email" type="email" autocomplete="email" placeholder="email@exemplo.com" required />
 
             <label v-if="selectedPlan?.coletarCpf" for="purchase-cpf">CPF</label>
             <input v-if="selectedPlan?.coletarCpf" id="purchase-cpf" :value="purchaseForm.cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" @input="updatePurchaseCpf" />
@@ -412,9 +412,11 @@ const customPurchaseEnabled = computed(() =>
   Boolean(portal.value?.hotspot.compraPersonalizada && customMinuteValue.value > 0 && configuredCustomMaxMinutes.value >= customMinMinutes.value),
 );
 const customPurchaseValue = computed(() => customMinutes.value * customMinuteValue.value);
+const isCustomPurchaseSelected = computed(() => selectedPlanId.value === CUSTOM_PLAN_ID);
 const selectedPlanNeedsForm = computed(() =>
   Boolean(
-    selectedPlan.value?.coletarNome ||
+    isCustomPurchaseSelected.value ||
+      selectedPlan.value?.coletarNome ||
       selectedPlan.value?.coletarTelefone ||
       selectedPlan.value?.coletarEmail ||
       selectedPlan.value?.coletarCpf ||
@@ -735,8 +737,12 @@ async function createPurchase(): Promise<void> {
   loading.value = true;
   error.value = "";
   try {
-    const isCustom = selectedPlanId.value === CUSTOM_PLAN_ID;
+    const isCustom = isCustomPurchaseSelected.value;
     resetCustomMinutes();
+    if (isCustom && !purchaseForm.email.trim()) {
+      error.value = "Informe seu email para gerar o PIX.";
+      return;
+    }
     const response = await api.post<{
       id: string;
       status: string;
@@ -774,7 +780,7 @@ async function submitContract(): Promise<void> {
   loading.value = true;
   error.value = "";
   try {
-    const response = await api.post<{ message: string }>("/portal/leads", compactPayload({
+    const response = await api.post<{ message: string; bonusAccess?: { minutes: number; html: string } }>("/portal/leads", compactPayload({
       hotspotSlug: slug.value,
       nome: leadForm.nome,
       email: leadForm.email,
@@ -784,6 +790,9 @@ async function submitContract(): Promise<void> {
       telefone: leadForm.telefone,
       whatsapp: leadForm.whatsapp,
       cpf: leadForm.cpf,
+      mac: queryValue("mac"),
+      ip: queryValue("ip"),
+      ...purchaseRouterPayload(),
     }));
     leadForm.nome = "";
     leadForm.email = "";
@@ -793,6 +802,13 @@ async function submitContract(): Promise<void> {
     leadForm.telefone = "";
     leadForm.whatsapp = "";
     leadForm.cpf = "";
+    if (response.bonusAccess?.html) {
+      document.open();
+      document.write(response.bonusAccess.html);
+      document.close();
+      return;
+    }
+
     goHome();
     error.value = response.message;
   } catch (requestError) {

@@ -20,8 +20,9 @@ describe("admin permissions", () => {
 
   it("matches the approved route matrix", () => {
     expect(canAccessRoute("manager", "mikrotiks")).toBe(true);
+    expect(canAccessRoute("manager", "locais")).toBe(true);
     expect(canAccessRoute("manager", "usuarios")).toBe(false);
-    expect(canAccessRoute("user", "locais")).toBe(true);
+    expect(canAccessRoute("user", "locais")).toBe(false);
     expect(canAccessRoute("user", "hotspots")).toBe(false);
     expect(canAccessRoute("user", "vouchers")).toBe(true);
   });

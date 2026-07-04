@@ -19,6 +19,7 @@ const columns: CrudColumn[] = [
   { key: "coletarTelefone", label: "Telefone", type: "boolean" },
   { key: "coletarWhatsapp", label: "WhatsApp", type: "boolean" },
   { key: "coletarCpf", label: "CPF", type: "boolean" },
+  { key: "bonusTempoMinutos", label: "Bonus min" },
   { key: "ativo", label: "Status", type: "boolean" },
 ];
 
@@ -33,6 +34,14 @@ const fields: CrudField[] = [
   { key: "coletarTelefone", label: "Coletar telefone", type: "checkbox-card", defaultValue: false },
   { key: "coletarWhatsapp", label: "Coletar WhatsApp", type: "checkbox-card", defaultValue: false },
   { key: "coletarCpf", label: "Coletar CPF", type: "checkbox-card", defaultValue: false },
+  {
+    key: "bonusTempoMinutos",
+    label: "Bonus de internet (minutos)",
+    type: "number",
+    defaultValue: 0,
+    full: true,
+    help: "Use 0 para apenas registrar o cadastro sem liberar internet.",
+  },
   { key: "ativo", label: "Ativo", type: "checkbox", defaultValue: true },
 ];
 </script>

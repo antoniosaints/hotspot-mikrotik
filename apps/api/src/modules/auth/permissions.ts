@@ -30,7 +30,7 @@ export type AdminTokenPayload = {
 
 const routeRoles: Record<AdminRouteKey, AdminRole[]> = {
   dashboard: ["admin", "manager", "user"],
-  locais: ["admin", "user"],
+  locais: ["admin", "manager"],
   mikrotiks: ["admin", "manager"],
   integracoes: ["admin", "manager"],
   hotspots: ["admin", "manager"],

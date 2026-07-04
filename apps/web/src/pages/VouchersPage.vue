@@ -85,7 +85,9 @@ import CrudPage, { type CrudColumn, type CrudField, type CrudRecord } from "@/pa
 import { api, ApiError } from "@/services/api";
 import type { Hotspot } from "@/types/hotspot";
 
-const hotspots = ref<Hotspot[]>([]);
+type HotspotOption = Pick<Hotspot, "id" | "nome" | "localId" | "mikrotikId" | "ativo">;
+
+const hotspots = ref<HotspotOption[]>([]);
 const hotspotsLoading = ref(true);
 const crud = ref<InstanceType<typeof CrudPage> | null>(null);
 const batchOpen = ref(false);
@@ -177,7 +179,7 @@ async function markSold(id: string, reload: () => Promise<void>): Promise<void> 
 
 onMounted(async () => {
   try {
-    hotspots.value = await api.get<Hotspot[]>("/hotspots");
+    hotspots.value = await api.get<HotspotOption[]>("/hotspots-options");
     if (!batch.hotspotId && hotspots.value[0]) {
       batch.hotspotId = hotspots.value[0].id;
     }

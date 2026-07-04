@@ -3,6 +3,7 @@ export const LoginType = {
   CPF: "CPF",
   IXC: "IXC",
   COMPRA: "COMPRA",
+  CONTRATACAO: "CONTRATACAO",
 } as const;
 
 export type LoginType = (typeof LoginType)[keyof typeof LoginType];

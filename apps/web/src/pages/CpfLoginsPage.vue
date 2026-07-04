@@ -18,7 +18,9 @@ import CrudPage, { type CrudColumn, type CrudField } from "@/pages/CrudPage.vue"
 import { api } from "@/services/api";
 import type { Hotspot } from "@/types/hotspot";
 
-const hotspots = ref<Hotspot[]>([]);
+type HotspotOption = Pick<Hotspot, "id" | "nome" | "localId" | "mikrotikId" | "ativo">;
+
+const hotspots = ref<HotspotOption[]>([]);
 const hotspotsLoading = ref(true);
 
 const columns: CrudColumn[] = [
@@ -53,7 +55,7 @@ const createDisabledReason = computed(() => {
 
 onMounted(async () => {
   try {
-    hotspots.value = await api.get<Hotspot[]>("/hotspots");
+    hotspots.value = await api.get<HotspotOption[]>("/hotspots-options");
   } finally {
     hotspotsLoading.value = false;
   }

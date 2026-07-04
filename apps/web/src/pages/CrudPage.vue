@@ -17,6 +17,15 @@
     </div>
 
     <Alert v-if="error" variant="destructive">{{ error }}</Alert>
+    <DataTableControls
+      v-if="!loading || items.length > 0"
+      v-model:search="searchTerm"
+      v-model:page="currentPage"
+      v-model:page-size="pageSize"
+      :total="items.length"
+      :filtered-total="filteredItems.length"
+      :total-pages="totalPages"
+    />
 
     <Card>
       <div v-if="loading" class="py-10 text-center text-sm text-muted-foreground">Carregando registros...</div>
@@ -36,12 +45,12 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-border">
-          <tr v-if="items.length === 0">
+          <tr v-if="filteredItems.length === 0">
             <td :colspan="columns.length + 1" class="px-4 py-10 text-center text-sm text-muted-foreground">
-              Nenhum registro encontrado.
+              {{ items.length === 0 ? "Nenhum registro encontrado." : "Nenhum registro encontrado para a busca." }}
             </td>
           </tr>
-          <tr v-for="item in items" :key="item.id" class="bg-card/40">
+          <tr v-for="item in paginatedItems" :key="item.id" class="bg-card/40">
             <td v-for="column in columns" :key="column.key" class="min-w-36 px-4 py-3 text-sm">
               <span v-if="column.type === 'boolean'">
                 <Badge :variant="readValue(item, column.key) ? 'default' : 'secondary'">
@@ -150,6 +159,7 @@ import Alert from "@/components/ui/Alert.vue";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
+import DataTableControls from "@/components/ui/DataTableControls.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
@@ -195,6 +205,9 @@ const items = ref<CrudRecord[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
+const searchTerm = ref("");
+const currentPage = ref(1);
+const pageSize = ref(10);
 const modalOpen = ref(false);
 const editingItem = ref<CrudRecord | null>(null);
 const form = reactive<Record<string, string | number | boolean | null>>({});
@@ -203,6 +216,19 @@ const eyebrow = computed(() => props.eyebrow ?? "Cadastro");
 const formDescription = computed(() => props.formDescription ?? "Preencha os dados e salve para atualizar a lista.");
 const modalWidthClass = computed(() => props.modalWidthClass ?? "max-w-2xl");
 const visibleFields = computed(() => props.fields.filter((field) => !field.visibleWhen || field.visibleWhen(form)));
+const filteredItems = computed(() => {
+  const term = searchTerm.value.trim().toLocaleLowerCase("pt-BR");
+  if (!term) return items.value;
+
+  return items.value.filter((item) =>
+    props.columns.some((column) => formatCell(item, column).toLocaleLowerCase("pt-BR").includes(term)),
+  );
+});
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize.value)));
+const paginatedItems = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  return filteredItems.value.slice(start, start + pageSize.value);
+});
 
 function readValue(item: CrudRecord, path: string): unknown {
   return path.split(".").reduce<unknown>((value, segment) => {
@@ -347,6 +373,14 @@ watch(
   },
   { deep: true },
 );
+
+watch([searchTerm, pageSize], () => {
+  currentPage.value = 1;
+});
+
+watch(totalPages, (pages) => {
+  if (currentPage.value > pages) currentPage.value = pages;
+});
 
 onMounted(loadItems);
 

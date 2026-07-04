@@ -13,17 +13,6 @@ const ixcInvoiceSchema = z.object({
   hotspotSlug: z.string().min(1),
   cpf: z.string().min(1),
 });
-const leadContratacaoSchema = z.object({
-  hotspotSlug: z.string().min(1),
-  nome: z.string().optional().nullable(),
-  email: z.string().email().optional().nullable().or(z.literal("")),
-  endereco: z.string().optional().nullable(),
-  cidade: z.string().optional().nullable(),
-  cep: z.string().optional().nullable(),
-  telefone: z.string().optional().nullable(),
-  whatsapp: z.string().optional().nullable(),
-  cpf: z.string().optional().nullable(),
-});
 const portalLoginRawSchema = z.object({
   loginType: z.enum(["voucher", "cpf", "ixc"]),
   hotspotSlug: z.string().min(1),
@@ -47,6 +36,17 @@ const portalLoginRawSchema = z.object({
   "chap-id-b64": z.string().optional().nullable(),
   "chap-challenge-b64": z.string().optional().nullable(),
 });
+const leadContratacaoSchema = z.object({
+  hotspotSlug: z.string().min(1),
+  nome: z.string().optional().nullable(),
+  email: z.string().email().optional().nullable().or(z.literal("")),
+  endereco: z.string().optional().nullable(),
+  cidade: z.string().optional().nullable(),
+  cep: z.string().optional().nullable(),
+  telefone: z.string().optional().nullable(),
+  whatsapp: z.string().optional().nullable(),
+  cpf: z.string().optional().nullable(),
+}).merge(portalLoginRawSchema.omit({ loginType: true, hotspotSlug: true, codigo: true, voucher: true, cpf: true }).partial());
 
 const ixcRecheckSchema = portalLoginRawSchema.extend({
   invoiceId: z.string().optional().nullable(),
@@ -95,6 +95,10 @@ function randomPassword() {
 
 function randomIxcPaymentCode() {
   return `IXC${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+}
+
+function randomLeadBonusCode() {
+  return `CAD${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
 }
 
 async function getIxcHotspot(slug: string) {
@@ -241,7 +245,7 @@ export async function portalRoutes(app: FastifyInstance) {
       const body = leadContratacaoSchema.parse(request.body);
       const hotspot = await prisma.hotspot.findUnique({
         where: { slug: body.hotspotSlug },
-        include: { cadastroTela: true },
+        include: { cadastroTela: true, mikrotik: true },
       });
 
       if (!hotspot || !hotspot.ativo || !hotspot.cadastroTela || !hotspot.cadastroTela.ativo) {
@@ -264,7 +268,54 @@ export async function portalRoutes(app: FastifyInstance) {
         },
       });
 
-      return reply.status(201).send({ id: lead.id, message: "Cadastro enviado com sucesso. Em breve entraremos em contato." });
+      const bonusMinutes = Math.max(0, tela.bonusTempoMinutos);
+      if (bonusMinutes <= 0) {
+        return reply.status(201).send({ id: lead.id, message: "Cadastro enviado com sucesso. Em breve entraremos em contato." });
+      }
+
+      const bonusCode = randomLeadBonusCode();
+      const now = new Date();
+
+      if (hotspot.mikrotik.ativo) {
+        await createHotspotUser(
+          hotspot.mikrotik,
+          bonusCode,
+          bonusCode,
+          bonusMinutes,
+          hotspot.mikrotik.profilePadrao,
+          "Hotspot CONTRATACAO",
+        );
+      }
+
+      await prisma.acesso.create({
+        data: {
+          tipo: LoginType.CONTRATACAO,
+          codigo: bonusCode,
+          mac: body.mac,
+          ip: body.ip,
+          loginEm: now,
+          expiraEm: addMinutes(now, bonusMinutes),
+          status: AccessStatus.LIBERADO,
+          hotspotId: hotspot.id,
+          mikrotikId: hotspot.mikrotikId,
+        },
+      });
+
+      const html = buildFinalLoginHtml({
+        linkLoginOnly: body.linkLoginOnly ?? body["link-login-only"],
+        linkLogin: body.linkLogin ?? body["link-login"],
+        username: bonusCode,
+        password: bonusCode,
+        dst: body.linkOrig ?? body["link-orig"],
+        chapId: body.chapId ?? body["chap-id"] ?? decodeBase64(body.chapIdB64 ?? body["chap-id-b64"]),
+        chapChallenge: body.chapChallenge ?? body["chap-challenge"] ?? decodeBase64(body.chapChallengeB64 ?? body["chap-challenge-b64"]),
+      });
+
+      return reply.status(201).send({
+        id: lead.id,
+        message: `Cadastro enviado com sucesso. Liberamos ${bonusMinutes} minuto(s) de internet como bonus.`,
+        bonusAccess: { minutes: bonusMinutes, html },
+      });
     } catch (error) {
       if (error instanceof ZodError) return sendZodError(reply, error);
       return sendCrudError(reply, error);

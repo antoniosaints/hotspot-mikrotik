@@ -68,7 +68,7 @@ const currentRole = computed<AdminRole>(() => currentAdmin.value?.role ?? "user"
 
 const navigation = [
   { label: "Dashboard", to: "/dashboard", icon: Gauge, roles: ["admin", "manager", "user"] },
-  { label: "Locais", to: "/locais", icon: MapPinned, roles: ["admin", "user"] },
+  { label: "Locais", to: "/locais", icon: MapPinned, roles: ["admin", "manager"] },
   { label: "MikroTiks", to: "/mikrotiks", icon: Router, roles: ["admin", "manager"] },
   { label: "Integracoes", to: "/integracoes", icon: Link2, roles: ["admin", "manager"] },
   { label: "Hotspots", to: "/hotspots", icon: RadioTower, roles: ["admin", "manager"] },

@@ -94,15 +94,24 @@
             <td class="px-4 py-3 text-sm">{{ client.mikrotikNome }}</td>
             <td class="px-4 py-3 text-sm">{{ client.uptime }}</td>
             <td class="px-4 py-3 text-right">
-              <Button
-                v-if="!client.error && canDisconnect"
-                size="sm"
-                variant="destructive"
-                :disabled="disconnectingId === `${client.mikrotikId}-${client.id}`"
-                @click="disconnectClient(client)"
-              >
-                Desconectar
-              </Button>
+              <div v-if="!client.error && canDisconnect" class="flex flex-wrap justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  :disabled="disconnectingId === `${client.mikrotikId}-${client.id}`"
+                  @click="disconnectClient(client)"
+                >
+                  Desconectar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  :disabled="disconnectingId === `${client.mikrotikId}-${client.id}`"
+                  @click="disconnectClient(client, true)"
+                >
+                  Desconectar + user
+                </Button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -293,12 +302,17 @@ function setMonthPeriod(): void {
   void loadDashboard();
 }
 
-async function disconnectClient(client: NonNullable<DashboardData["activeClients"]>[number]): Promise<void> {
+async function disconnectClient(client: NonNullable<DashboardData["activeClients"]>[number], removeUser = false): Promise<void> {
+  if (removeUser && !window.confirm(`Desconectar e apagar o usuario "${client.username}" do MikroTik?`)) return;
   const key = `${client.mikrotikId}-${client.id}`;
   disconnectingId.value = key;
   error.value = "";
   try {
-    await api.post(`/dashboard/active-clients/${client.mikrotikId}/disconnect`, { activeId: client.id });
+    await api.post(`/dashboard/active-clients/${client.mikrotikId}/disconnect`, {
+      activeId: client.id,
+      username: client.username,
+      removeUser,
+    });
     await loadDashboard();
   } catch (requestError) {
     error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel desconectar o cliente.";
@@ -319,6 +333,7 @@ function loginTypeLabel(tipo: LoginType): string {
   if (tipo === "CPF") return "CPF local";
   if (tipo === "IXC") return "Integracao";
   if (tipo === "COMPRA") return "Compra";
+  if (tipo === "CONTRATACAO") return "Contratacao";
   return "Voucher";
 }
 
