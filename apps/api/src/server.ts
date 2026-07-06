@@ -25,41 +25,13 @@ declare module "@fastify/jwt" {
   }
 }
 
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
-  : [];
-
 export function buildServer() {
   const app = Fastify({
     logger: process.env.NODE_ENV !== "test",
   });
 
   app.register(cors, {
-    origin: (origin, cb) => {
-      // permite requests sem origin (postman, app, curl)
-      if (!origin) {
-        cb(null, true);
-        return;
-      }
-
-      console.log(origin);
-
-      // if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
-      //   cb(null, true);
-      //   return;
-      // }
-
-      // libera apenas esse domínio
-      if (origin.endsWith(".cas.net.br")) {
-        console.log("Passou, a origem foi aceita!");
-        cb(null, true);
-        return;
-      }
-
-      cb(new Error("CORS bloqueado"), false);
-    },
-
-    // credentials: true,
+    origin: "*",
   });
   app.register(sensible);
   app.register(jwt, {
