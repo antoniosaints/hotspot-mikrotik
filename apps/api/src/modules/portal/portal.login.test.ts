@@ -119,7 +119,7 @@ describe("portal voucher login", () => {
       expect(createHotspotUserMock).toHaveBeenCalledWith(
         expect.objectContaining({ id: "mikrotik-1" }),
         "ABC123",
-        expect.not.stringMatching(/^ABC123$/),
+        "ABC123",
         30,
         "default",
         "Hotspot VOUCHER",

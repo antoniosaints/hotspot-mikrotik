@@ -48,7 +48,13 @@ const routerLoginSchema = z.object({
 
 function decodeBase64(value: string | null | undefined) {
   if (!value) return undefined;
-  return Buffer.from(value, "base64").toString("utf8");
+  // "latin1" preserva os bytes binarios do chap-challenge (ver portal.routes).
+  return Buffer.from(value, "base64").toString("latin1");
+}
+
+// Prefere a versao base64 (transporte seguro) e usa o valor cru como fallback.
+function chapValue(raw: string | null | undefined, b64: string | null | undefined) {
+  return decodeBase64(b64) ?? raw ?? undefined;
 }
 
 function normalizeRouterLogin(input: unknown) {
@@ -333,8 +339,8 @@ export async function billingRoutes(app: FastifyInstance) {
         username: tempCode,
         password: tempCode,
         dst: body.linkOrig,
-        chapId: body.chapId ?? decodeBase64(body.chapIdB64),
-        chapChallenge: body.chapChallenge ?? decodeBase64(body.chapChallengeB64),
+        chapId: chapValue(body.chapId, body.chapIdB64),
+        chapChallenge: chapValue(body.chapChallenge, body.chapChallengeB64),
       });
 
       return reply.type("text/html").send(html);
@@ -360,8 +366,8 @@ export async function billingRoutes(app: FastifyInstance) {
         username: compra.loginUsuario,
         password: compra.loginSenha,
         dst: body.linkOrig,
-        chapId: body.chapId ?? decodeBase64(body.chapIdB64),
-        chapChallenge: body.chapChallenge ?? decodeBase64(body.chapChallengeB64),
+        chapId: chapValue(body.chapId, body.chapIdB64),
+        chapChallenge: chapValue(body.chapChallenge, body.chapChallengeB64),
       });
 
       return reply.type("text/html").send(html);

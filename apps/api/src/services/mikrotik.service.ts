@@ -17,6 +17,7 @@ type RouterOsClientConstructor = new (config: {
 }) => {
   connect?: () => Promise<RouterOsMenu>;
   close?: () => Promise<void>;
+  on?: (event: string, listener: (...args: unknown[]) => void) => unknown;
 };
 
 type RouterOsMenu = {
@@ -103,27 +104,77 @@ function formatRouterOsError(error: unknown) {
   return `Falha na comunicacao com MikroTik ${message}`;
 }
 
+// A biblioteca node-routeros interpreta `timeout` em SEGUNDOS (ela propria
+// multiplica por 1000). O campo `timeoutApi` do cadastro e em milissegundos,
+// entao e preciso converter. Sem essa conversao, 5000 (ms) vira ~83 minutos de
+// timeout real e o proxy reverso de producao responde 502 antes da API.
+function timeoutApiToSeconds(timeoutMs: number) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return 5;
+  }
+
+  return Math.max(1, Math.ceil(timeoutMs / 1000));
+}
+
 async function withClient<T>(config: MikrotikConnectionConfig, action: (client: RouterOsMenu) => Promise<T>) {
   const Client = await loadRouterOsClient();
+  const timeoutSeconds = timeoutApiToSeconds(config.timeoutApi);
   const client = new Client({
     host: config.host,
     user: config.usuarioApi,
     password: config.senhaApi,
     port: config.portaApi,
-    timeout: config.timeoutApi,
+    timeout: timeoutSeconds,
+  });
+
+  // O RouterOSClient e um EventEmitter que emite "error" de forma assincrona
+  // (ex.: reset ou timeout de socket depois do connect). Sem um listener
+  // registrado, o Node encerra o processo inteiro com ERR_UNHANDLED_ERROR,
+  // derrubando a API em producao. O erro relevante continua chegando pela
+  // rejeicao das promises; aqui apenas evitamos o crash.
+  let lastEmittedError: unknown;
+  client.on?.("error", (error) => {
+    lastEmittedError = error;
+  });
+
+  // Garantia extra: nunca deixar a requisicao pendurada alem do timeout
+  // configurado (senao o proxy reverso responde 502 sem headers CORS).
+  const watchdogMs = timeoutSeconds * 1000 + 5000;
+  let watchdogTimer: NodeJS.Timeout | undefined;
+  const watchdog = new Promise<never>((_, reject) => {
+    watchdogTimer = setTimeout(() => {
+      reject(new Error(`Tempo limite de ${timeoutSeconds}s excedido ao comunicar com o MikroTik ${config.host}:${config.portaApi}.`));
+    }, watchdogMs);
+    watchdogTimer.unref?.();
   });
 
   try {
-    const connectedClient = await client.connect?.();
-    if (!connectedClient) {
-      throw new Error("Cliente RouterOS nao retornou uma sessao API conectada.");
+    const run = async () => {
+      const connectedClient = await client.connect?.();
+      if (!connectedClient) {
+        throw new Error("Cliente RouterOS nao retornou uma sessao API conectada.");
+      }
+
+      return action(connectedClient);
+    };
+
+    const work = run();
+    // Evita unhandled rejection caso o watchdog vença a corrida.
+    work.catch(() => {});
+
+    return await Promise.race([work, watchdog]);
+  } catch (error) {
+    throw new Error(formatRouterOsError(error ?? lastEmittedError));
+  } finally {
+    if (watchdogTimer) {
+      clearTimeout(watchdogTimer);
     }
 
-    return await action(connectedClient);
-  } catch (error) {
-    throw new Error(formatRouterOsError(error));
-  } finally {
-    await client.close?.();
+    try {
+      await client.close?.();
+    } catch {
+      // Falha ao fechar a sessao nao deve mascarar o resultado da operacao.
+    }
   }
 }
 

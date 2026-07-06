@@ -62,7 +62,16 @@ function decodeBase64(value: string | null | undefined) {
     return undefined;
   }
 
-  return Buffer.from(value, "base64").toString("utf8");
+  // O chap-challenge e binario. "latin1" preserva cada byte como um char
+  // 0x00-0xFF (compativel com o hexMD5 do md5.js do MikroTik); "utf8"
+  // corromperia bytes invalidos e geraria hash CHAP errado.
+  return Buffer.from(value, "base64").toString("latin1");
+}
+
+// Prefere a versao base64 (transporte seguro em querystring/JSON) e usa o
+// valor cru apenas como fallback, pois ele pode chegar corrompido do browser.
+function chapValue(raw: string | null | undefined, b64: string | null | undefined) {
+  return decodeBase64(b64) ?? raw ?? undefined;
 }
 
 type PortalLoginBody = ReturnType<typeof normalizePortalLoginBody>;
@@ -140,8 +149,8 @@ function finalLoginHtml(body: ReturnType<typeof normalizePortalLoginBody>, usern
     username,
     password,
     dst: body.linkOrig,
-    chapId: body.chapId ?? decodeBase64(body.chapIdB64),
-    chapChallenge: body.chapChallenge ?? decodeBase64(body.chapChallengeB64),
+    chapId: chapValue(body.chapId, body.chapIdB64),
+    chapChallenge: chapValue(body.chapChallenge, body.chapChallengeB64),
   });
 }
 
@@ -307,8 +316,8 @@ export async function portalRoutes(app: FastifyInstance) {
         username: bonusCode,
         password: bonusCode,
         dst: body.linkOrig ?? body["link-orig"],
-        chapId: body.chapId ?? body["chap-id"] ?? decodeBase64(body.chapIdB64 ?? body["chap-id-b64"]),
-        chapChallenge: body.chapChallenge ?? body["chap-challenge"] ?? decodeBase64(body.chapChallengeB64 ?? body["chap-challenge-b64"]),
+        chapId: chapValue(body.chapId ?? body["chap-id"], body.chapIdB64 ?? body["chap-id-b64"]),
+        chapChallenge: chapValue(body.chapChallenge ?? body["chap-challenge"], body.chapChallengeB64 ?? body["chap-challenge-b64"]),
       });
 
       return reply.status(201).send({
@@ -461,7 +470,7 @@ export async function portalRoutes(app: FastifyInstance) {
         }
 
         username = voucher.codigo;
-        password = randomPassword();
+        password = voucher.codigo;
         minutes = voucher.tempoMinutos;
         voucherId = voucher.id;
         accessCode = voucher.codigo;
@@ -547,8 +556,8 @@ export async function portalRoutes(app: FastifyInstance) {
         username,
         password,
         dst: body.linkOrig,
-        chapId: body.chapId ?? decodeBase64(body.chapIdB64),
-        chapChallenge: body.chapChallenge ?? decodeBase64(body.chapChallengeB64),
+        chapId: chapValue(body.chapId, body.chapIdB64),
+        chapChallenge: chapValue(body.chapChallenge, body.chapChallengeB64),
       });
 
       const now = new Date();
