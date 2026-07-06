@@ -8,6 +8,7 @@ import { prisma } from "./db.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import type { AdminTokenPayload } from "./modules/auth/permissions.js";
 import { billingRoutes } from "./modules/billing/billing.routes.js";
+import { startExpirationSweep } from "./modules/billing/expiration.service.js";
 import { crudRoutes } from "./modules/crud/crud.routes.js";
 import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
 import { portalRoutes } from "./modules/portal/portal.routes.js";
@@ -28,6 +29,9 @@ declare module "@fastify/jwt" {
 export function buildServer() {
   const app = Fastify({
     logger: process.env.NODE_ENV !== "test",
+    // Atras de Cloudflare/proxy reverso: respeita X-Forwarded-* para que
+    // request.protocol/hostname reflitam a URL publica.
+    trustProxy: true,
   });
 
   app.register(cors, {
@@ -89,6 +93,10 @@ async function start() {
 
   try {
     await app.listen({ port: config.port, host: "0.0.0.0" });
+    const stopExpirationSweep = startExpirationSweep(app.log);
+    app.addHook("onClose", async () => {
+      stopExpirationSweep();
+    });
   } catch (error) {
     app.log.error(error);
     process.exit(1);

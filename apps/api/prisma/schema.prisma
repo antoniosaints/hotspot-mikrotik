@@ -177,6 +177,9 @@ model CompraAcesso {
   pagoEm                DateTime?
   liberadoEm            DateTime?
   erroLiberacao         String?
+  janelaExpiraEm        DateTime?
+  tempoExpiraEm         DateTime?
+  ultimaVerificacaoEm   DateTime?
   hotspotId             String
   planoId               String?
   pagamentoIntegracaoId String?

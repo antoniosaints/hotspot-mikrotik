@@ -24,6 +24,7 @@ type RouterOsMenu = {
   menu?: (path: string) => {
     add?: (data: Record<string, string>) => Promise<unknown>;
     remove?: (id?: string) => Promise<unknown>;
+    update?: (data: Record<string, string>, ids?: string | string[]) => Promise<unknown>;
     get?: (query?: Record<string, string>) => Promise<Array<Record<string, unknown>>>;
     getOnly?: (query?: Record<string, string>) => Promise<Record<string, unknown> | null>;
   };
@@ -182,7 +183,7 @@ export async function createHotspotUser(
   config: MikrotikConnectionConfig,
   username: string,
   password: string,
-  minutes: number,
+  minutes: number | null,
   profile: string,
   comment?: string,
 ): Promise<void> {
@@ -197,7 +198,9 @@ export async function createHotspotUser(
         name: username,
         password,
         profile,
-        "limit-uptime": `${minutes}m`,
+        // minutes null/<=0 = sem limit-uptime (o tempo passa a ser controlado
+        // pela API, ex.: janela de pagamento da bilheteria).
+        ...(minutes && minutes > 0 ? { "limit-uptime": `${minutes}m` } : {}),
         ...(comment ? { comment } : {}),
       });
     } catch (error) {
@@ -210,6 +213,41 @@ export async function createHotspotUser(
 
       throw error;
     }
+  });
+}
+
+export const HOTSPOT_USER_NOT_FOUND = "Usuario hotspot nao encontrado no MikroTik.";
+
+export async function updateHotspotUser(
+  config: MikrotikConnectionConfig,
+  username: string,
+  data: { minutes?: number | null; comment?: string },
+): Promise<void> {
+  await withClient(config, async (client) => {
+    const users = client.menu?.("/ip/hotspot/user");
+    if (!users?.getOnly || !users.update) {
+      throw new Error("Cliente RouterOS nao expoe /ip/hotspot/user.getOnly/update.");
+    }
+
+    const existingUser = await users.getOnly({ name: username });
+    if (!existingUser) {
+      throw new Error(HOTSPOT_USER_NOT_FOUND);
+    }
+
+    const id = existingUser.id ?? existingUser[".id"];
+    if (typeof id !== "string" || id.length === 0) {
+      throw new Error("Usuario hotspot encontrado sem .id para atualizacao.");
+    }
+
+    await users.update(
+      {
+        ...(data.minutes !== undefined
+          ? { "limit-uptime": data.minutes && data.minutes > 0 ? `${data.minutes}m` : "0s" }
+          : {}),
+        ...(data.comment !== undefined ? { comment: data.comment } : {}),
+      },
+      id,
+    );
   });
 }
 

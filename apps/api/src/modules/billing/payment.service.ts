@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 export type MercadoPagoConfig = {
   accessToken: string;
   webhookSecret?: string | null;
@@ -89,4 +91,51 @@ export async function getPayment(config: MercadoPagoConfig, paymentId: string): 
 
 export function isApprovedPayment(payment: MercadoPagoPayment) {
   return payment.status === "approved";
+}
+
+export type WebhookSignatureInput = {
+  secret: string;
+  xSignature: string | null | undefined;
+  xRequestId: string | null | undefined;
+  dataId: string;
+};
+
+// Validacao da assinatura de webhooks do Mercado Pago.
+// Header x-signature: "ts=<timestamp>,v1=<hmac>"; o HMAC-SHA256 e calculado
+// sobre o manifest "id:<data.id>;request-id:<x-request-id>;ts:<ts>;"
+// (partes omitidas quando o valor nao existe), usando a chave secreta do
+// webhook configurada na integracao.
+export function verifyMercadoPagoSignature(input: WebhookSignatureInput): boolean {
+  if (!input.xSignature) {
+    return false;
+  }
+
+  const parts = new Map<string, string>();
+  for (const piece of input.xSignature.split(",")) {
+    const [key, ...rest] = piece.split("=");
+    if (key && rest.length > 0) {
+      parts.set(key.trim(), rest.join("=").trim());
+    }
+  }
+
+  const ts = parts.get("ts");
+  const hash = parts.get("v1");
+  if (!ts || !hash) {
+    return false;
+  }
+
+  const manifestParts: string[] = [];
+  if (input.dataId) {
+    manifestParts.push(`id:${input.dataId.toLowerCase()};`);
+  }
+  if (input.xRequestId) {
+    manifestParts.push(`request-id:${input.xRequestId};`);
+  }
+  manifestParts.push(`ts:${ts};`);
+
+  const expected = createHmac("sha256", input.secret).update(manifestParts.join("")).digest("hex");
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  const receivedBuffer = Buffer.from(hash, "utf8");
+
+  return expectedBuffer.length === receivedBuffer.length && timingSafeEqual(expectedBuffer, receivedBuffer);
 }

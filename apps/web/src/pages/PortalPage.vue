@@ -287,19 +287,34 @@
           </button>
 
           <div v-if="purchasePixCopied && !purchaseTempAccessConfirmed" class="payment-warning">
-            <strong>Atenção: você terá apenas 4 minutos de internet.</strong>
+            <strong>Atenção: você terá {{ PAYMENT_WINDOW_MINUTES }} minutos de internet para pagar.</strong>
             <span>Use esse tempo para abrir o banco, pagar o PIX copiado e voltar para concluir o acesso.</span>
           </div>
           <button v-if="purchasePixCopied && !purchaseTempAccessConfirmed" class="primary" type="button" :disabled="loading" @click="confirmPurchaseTempAccess">
-            {{ loading ? "Liberando..." : "Confirmar e liberar 4 minutos" }}
+            {{ loading ? "Liberando..." : `Confirmar e liberar ${PAYMENT_WINDOW_MINUTES} minutos` }}
           </button>
 
           <div v-if="purchaseTempAccessConfirmed" class="payment-status">
             <strong>Status:</strong> {{ purchaseStatusLabel }}
           </div>
 
-          <button v-if="purchaseTempAccessConfirmed" class="primary" type="button" :disabled="purchaseStatus !== 'LIBERADO'" @click="finalizePurchaseLogin">
-            {{ purchaseStatus === "LIBERADO" ? "Entrar agora" : "Aguardando pagamento..." }}
+          <div v-if="purchaseTempAccessConfirmed && purchaseStatus === 'LIBERADO'" class="payment-warning payment-success">
+            <strong>Pagamento confirmado!</strong>
+            <span>Seu tempo já foi liberado nesta conexão — pode continuar navegando normalmente.</span>
+          </div>
+          <button
+            v-if="purchaseTempAccessConfirmed && purchaseStatus === 'LIBERADO'"
+            class="secondary"
+            type="button"
+            @click="finalizePurchaseLogin"
+          >
+            Caiu a conexão? Reconectar
+          </button>
+          <button v-else-if="!purchaseTempAccessConfirmed && purchaseStatus === 'LIBERADO'" class="primary" type="button" @click="finalizePurchaseLogin">
+            Entrar agora
+          </button>
+          <button v-else-if="purchaseTempAccessConfirmed" class="primary" type="button" disabled>
+            Aguardando pagamento...
           </button>
           <button type="button" class="secondary" @click="goHome">Voltar</button>
         </div>
@@ -423,10 +438,14 @@ const selectedPlanNeedsForm = computed(() =>
       selectedPlan.value?.coletarEndereco,
   ),
 );
+const PAYMENT_WINDOW_MINUTES = 10;
+
 const purchaseStatusLabel = computed(() => {
   if (purchaseStatus.value === "LIBERADO") return "acesso liberado";
   if (purchaseStatus.value === "FALHA_LIBERACAO") return "pagamento aprovado, falha ao liberar";
   if (purchaseStatus.value === "PAGO") return "pagamento aprovado";
+  if (purchaseStatus.value === "EXPIRADA") return "janela de pagamento expirada";
+  if (purchaseStatus.value === "ENCERRADA") return "tempo comprado encerrado";
   return "aguardando pagamento";
 });
 
@@ -833,7 +852,7 @@ function startPurchasePolling(): void {
       const status = await api.get<{ status: string; erroLiberacao: string | null }>(`/portal/purchases/${purchaseId.value}/status`);
       purchaseStatus.value = status.status;
       savePurchasePaymentState();
-      if (status.status === "LIBERADO" || status.status === "FALHA_LIBERACAO") {
+      if (status.status === "LIBERADO" || status.status === "FALHA_LIBERACAO" || status.status === "EXPIRADA") {
         stopPurchasePolling();
         if (status.erroLiberacao) error.value = status.erroLiberacao;
       }
@@ -1368,6 +1387,13 @@ onBeforeUnmount(stopPurchasePolling);
 .payment-warning strong,
 .payment-warning span {
   display: block;
+}
+
+.payment-warning.payment-success {
+  border-color: #16a34a;
+  background: #f0fdf4;
+  color: #14532d;
+  box-shadow: 0 12px 28px rgba(22, 163, 74, 0.18);
 }
 
 .payment-warning strong {

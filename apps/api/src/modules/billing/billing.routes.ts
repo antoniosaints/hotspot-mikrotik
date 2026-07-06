@@ -1,12 +1,22 @@
 import type { FastifyInstance } from "fastify";
 import { z, ZodError } from "zod";
 import { prisma } from "../../db.js";
+import { config } from "../../config.js";
 import { buildFinalLoginHtml } from "../../services/router-login.service.js";
-import { createHotspotUser } from "../../services/mikrotik.service.js";
+import { createHotspotUser, HOTSPOT_USER_NOT_FOUND, updateHotspotUser } from "../../services/mikrotik.service.js";
 import { AccessStatus, LoginType } from "../../types.js";
 import { addMinutes, sendCrudError, sendZodError } from "../../utils/http.js";
 import { buildTicketCredentials, hasProspectData, normalizeBuyerFields, randomTicketCode } from "./billing.service.js";
-import { createPixPayment, getPayment, isApprovedPayment } from "./payment.service.js";
+import { createPixPayment, getPayment, isApprovedPayment, verifyMercadoPagoSignature } from "./payment.service.js";
+
+// Janela para o cliente pagar o PIX ja conectado (controlada pela API).
+export const PAYMENT_WINDOW_MINUTES = 10;
+// Folga somada ao limit-uptime na liberacao: vale apenas para RELOGINS e serve
+// de rede de seguranca caso a API fique fora do ar (a sessao ativa nao e
+// afetada pelo set, que e exatamente o que garante a extensao sem desconectar).
+export const LIMIT_UPTIME_SAFETY_MINUTES = 60;
+// Intervalo minimo entre consultas de reconciliacao ao Mercado Pago por compra.
+const RECONCILE_MIN_INTERVAL_MS = 10_000;
 
 const optionalEmailSchema = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? null : value),
@@ -74,12 +84,33 @@ function publicBaseUrl(request: { protocol: string; hostname: string }) {
   return `${request.protocol}://${request.hostname}`;
 }
 
-function randomTempPaymentCode() {
-  return `PAY${randomTicketCode().replace(/[^A-Z0-9]/gi, "").slice(0, 9).toUpperCase()}`;
-}
-
 function isValidCustomStep(minutes: number, min: number, step: number) {
   return (minutes - min) % step === 0;
+}
+
+type PurchaseCredentialSource = {
+  loginUsuario: string | null;
+  loginSenha: string | null;
+  nome: string | null;
+  telefone: string | null;
+  email: string | null;
+  cpf: string | null;
+  endereco: string | null;
+};
+
+function purchaseCredentials(compra: PurchaseCredentialSource) {
+  if (compra.loginUsuario && compra.loginSenha) {
+    return { username: compra.loginUsuario, password: compra.loginSenha };
+  }
+
+  return buildTicketCredentials(
+    { nome: compra.nome, telefone: compra.telefone, email: compra.email, cpf: compra.cpf, endereco: compra.endereco },
+    randomTicketCode,
+  );
+}
+
+function webhookNotificationUrl(request: { protocol: string; hostname: string }) {
+  return `${config.publicApiUrl ?? publicBaseUrl(request)}/api/webhooks/mercado-pago`;
 }
 
 async function releasePurchase(compraId: string) {
@@ -100,22 +131,38 @@ async function releasePurchase(compraId: string) {
     });
   }
 
-  const credentials = buildTicketCredentials(
-    { nome: compra.nome, telefone: compra.telefone, email: compra.email, cpf: compra.cpf, endereco: compra.endereco },
-    randomTicketCode,
-  );
+  const credentials = purchaseCredentials(compra);
   const now = new Date();
+  const tempoExpiraEm = addMinutes(now, purchaseMinutes);
 
   try {
     if (compra.hotspot.mikrotik.ativo) {
-      await createHotspotUser(
-        compra.hotspot.mikrotik,
-        credentials.username,
-        credentials.password,
-        purchaseMinutes,
-        compra.hotspot.mikrotik.profilePadrao,
-        "Hotspot COMPRA",
-      );
+      // Extensao sem desconexao: o usuario ja esta logado (janela de
+      // pagamento) e a sessao ativa nao e alterada. Apenas atualizamos o
+      // cadastro do usuario no router (limit-uptime como rede de seguranca
+      // para relogins). Quem encerra o tempo comprado e o scheduler da API.
+      try {
+        await updateHotspotUser(compra.hotspot.mikrotik, credentials.username, {
+          minutes: purchaseMinutes + LIMIT_UPTIME_SAFETY_MINUTES,
+          comment: "Hotspot COMPRA",
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (!message.includes(HOTSPOT_USER_NOT_FOUND)) {
+          throw error;
+        }
+
+        // Cliente pagou sem nunca ter usado a janela (ex.: pagou de outro
+        // aparelho): cria o usuario agora.
+        await createHotspotUser(
+          compra.hotspot.mikrotik,
+          credentials.username,
+          credentials.password,
+          purchaseMinutes + LIMIT_UPTIME_SAFETY_MINUTES,
+          compra.hotspot.mikrotik.profilePadrao,
+          "Hotspot COMPRA",
+        );
+      }
     }
 
     const acesso = await prisma.acesso.create({
@@ -125,7 +172,7 @@ async function releasePurchase(compraId: string) {
         mac: compra.mac,
         ip: compra.ip,
         loginEm: now,
-        expiraEm: addMinutes(now, purchaseMinutes),
+        expiraEm: tempoExpiraEm,
         status: AccessStatus.LIBERADO,
         hotspotId: compra.hotspotId,
         mikrotikId: compra.hotspot.mikrotikId,
@@ -139,6 +186,7 @@ async function releasePurchase(compraId: string) {
         loginUsuario: credentials.username,
         loginSenha: credentials.password,
         liberadoEm: now,
+        tempoExpiraEm,
         acessoId: acesso.id,
       },
     });
@@ -225,11 +273,18 @@ export async function billingRoutes(app: FastifyInstance) {
         endereco: plano?.coletarEndereco ? body.endereco : null,
       });
 
+      // Credenciais definitivas geradas ja na criacao: o cliente usa o mesmo
+      // usuario da janela de pagamento ate o fim do tempo comprado (sem troca
+      // de usuario e sem re-login na aprovacao).
+      const credentials = buildTicketCredentials(buyer, randomTicketCode);
+
       const compra = await prisma.compraAcesso.create({
         data: {
           status: "PENDENTE",
           valorCentavos: purchaseValue,
           tempoMinutos: purchaseMinutes,
+          loginUsuario: credentials.username,
+          loginSenha: credentials.password,
           nome: buyer.nome,
           telefone: buyer.telefone,
           email: buyer.email,
@@ -250,7 +305,7 @@ export async function billingRoutes(app: FastifyInstance) {
           description: `${purchaseName} - ${hotspot.nome}`,
           payerEmail: buyer.email,
           externalReference: compra.id,
-          notificationUrl: `${publicBaseUrl(request)}/api/webhooks/mercado-pago`,
+          notificationUrl: webhookNotificationUrl(request),
         },
       );
 
@@ -279,13 +334,61 @@ export async function billingRoutes(app: FastifyInstance) {
   app.get("/portal/purchases/:id/status", async (request, reply) => {
     try {
       const params = purchaseParamsSchema.parse(request.params);
-      const compra = await prisma.compraAcesso.findUnique({
+      let compra = await prisma.compraAcesso.findUnique({
         where: { id: params.id },
-        select: { id: true, status: true, erroLiberacao: true, loginUsuario: true },
+        include: { pagamentoIntegracao: true },
       });
 
       if (!compra) return reply.status(404).send({ error: "Compra nao encontrada." });
-      return compra;
+
+      // Reconciliacao: o portal ja consulta este endpoint em polling; se o
+      // webhook do Mercado Pago nao chegar, a propria consulta destrava a
+      // compra perguntando ao MP (no maximo 1 vez por RECONCILE_MIN_INTERVAL_MS).
+      const podeReconciliar =
+        compra.status === "PENDENTE" &&
+        Boolean(compra.mercadoPagoPaymentId) &&
+        Boolean(compra.pagamentoIntegracao?.token) &&
+        (!compra.ultimaVerificacaoEm || Date.now() - compra.ultimaVerificacaoEm.getTime() >= RECONCILE_MIN_INTERVAL_MS);
+
+      if (podeReconciliar && compra.mercadoPagoPaymentId && compra.pagamentoIntegracao?.token) {
+        await prisma.compraAcesso.update({
+          where: { id: compra.id },
+          data: { ultimaVerificacaoEm: new Date() },
+        });
+
+        try {
+          const payment = await getPayment({ accessToken: compra.pagamentoIntegracao.token }, compra.mercadoPagoPaymentId);
+          if (payment.externalReference === compra.id) {
+            await prisma.compraAcesso.update({
+              where: { id: compra.id },
+              data: {
+                mercadoPagoStatus: payment.status,
+                ...(isApprovedPayment(payment) ? { status: "PAGO", pagoEm: new Date() } : {}),
+              },
+            });
+
+            if (isApprovedPayment(payment)) {
+              await releasePurchase(compra.id);
+            }
+          }
+        } catch (error) {
+          request.log.warn({ err: error }, "Falha na reconciliacao de pagamento com o Mercado Pago");
+        }
+
+        compra = await prisma.compraAcesso.findUnique({
+          where: { id: params.id },
+          include: { pagamentoIntegracao: true },
+        });
+
+        if (!compra) return reply.status(404).send({ error: "Compra nao encontrada." });
+      }
+
+      return {
+        id: compra.id,
+        status: compra.status,
+        erroLiberacao: compra.erroLiberacao,
+        loginUsuario: compra.loginUsuario,
+      };
     } catch (error) {
       if (error instanceof ZodError) return sendZodError(reply, error);
       return sendCrudError(reply, error);
@@ -305,39 +408,52 @@ export async function billingRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Compra nao encontrada." });
       }
 
-      const tempCode = randomTempPaymentCode();
-      const now = new Date();
-
-      if (compra.hotspot.mikrotik.ativo) {
-        await createHotspotUser(
-          compra.hotspot.mikrotik,
-          tempCode,
-          tempCode,
-          4,
-          compra.hotspot.mikrotik.profilePadrao,
-          "Hotspot COMPRA_PAGAMENTO",
-        );
+      if (compra.status === "EXPIRADA" || compra.status === "ENCERRADA") {
+        return reply.status(400).send({ error: "Janela de pagamento expirada. Inicie uma nova compra." });
       }
 
-      await prisma.acesso.create({
+      const credentials = purchaseCredentials(compra);
+      const now = new Date();
+
+      // Usuario definitivo desde o inicio, SEM limit-uptime: a sessao ativa
+      // nao tem contagem regressiva no router, e quem controla a janela de
+      // pagamento e o tempo comprado e o scheduler da API. Assim, quando o
+      // pagamento aprovar, nada precisa mexer na sessao — sem desconexao.
+      if (compra.hotspot.mikrotik.ativo && compra.status !== "LIBERADO") {
+        try {
+          await createHotspotUser(
+            compra.hotspot.mikrotik,
+            credentials.username,
+            credentials.password,
+            null,
+            compra.hotspot.mikrotik.profilePadrao,
+            "Hotspot COMPRA_PENDENTE",
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          // Reentrada na janela (ex.: cliente recarregou o portal).
+          if (!message.includes("already have user with this name")) {
+            throw error;
+          }
+        }
+      }
+
+      await prisma.compraAcesso.update({
+        where: { id: compra.id },
         data: {
-          tipo: LoginType.COMPRA,
-          codigo: tempCode,
-          mac: compra.mac,
-          ip: compra.ip,
-          loginEm: now,
-          expiraEm: addMinutes(now, 4),
-          status: AccessStatus.LIBERADO,
-          hotspotId: compra.hotspotId,
-          mikrotikId: compra.hotspot.mikrotikId,
+          loginUsuario: credentials.username,
+          loginSenha: credentials.password,
+          ...(compra.status === "PENDENTE" && !compra.janelaExpiraEm
+            ? { janelaExpiraEm: addMinutes(now, PAYMENT_WINDOW_MINUTES) }
+            : {}),
         },
       });
 
       const html = buildFinalLoginHtml({
         linkLoginOnly: body.linkLoginOnly,
         linkLogin: body.linkLogin,
-        username: tempCode,
-        password: tempCode,
+        username: credentials.username,
+        password: credentials.password,
         dst: body.linkOrig,
         chapId: chapValue(body.chapId, body.chapIdB64),
         chapChallenge: chapValue(body.chapChallenge, body.chapChallengeB64),
@@ -389,6 +505,23 @@ export async function billingRoutes(app: FastifyInstance) {
       });
 
       if (!compra?.pagamentoIntegracao?.token) return reply.status(200).send({ ok: true });
+
+      // Se a integracao tem chave de webhook configurada, valida a assinatura
+      // do Mercado Pago (x-signature) antes de processar.
+      const webhookSecret = compra.pagamentoIntegracao.chaveWebhook;
+      if (webhookSecret) {
+        const signatureOk = verifyMercadoPagoSignature({
+          secret: webhookSecret,
+          xSignature: request.headers["x-signature"] as string | undefined,
+          xRequestId: request.headers["x-request-id"] as string | undefined,
+          dataId: paymentId,
+        });
+
+        if (!signatureOk) {
+          request.log.warn({ compraId: compra.id }, "Webhook Mercado Pago com assinatura invalida");
+          return reply.status(401).send({ error: "Assinatura invalida." });
+        }
+      }
 
       const payment = await getPayment({ accessToken: compra.pagamentoIntegracao.token }, paymentId);
       if (payment.externalReference !== compra.id) return reply.status(200).send({ ok: true });
