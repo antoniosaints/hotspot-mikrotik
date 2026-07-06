@@ -51,6 +51,7 @@ export function buildServer() {
 
       // libera apenas esse domínio
       if (origin.endsWith(".cas.net.br")) {
+        console.log("Passou, a origem foi aceita!");
         cb(null, true);
         return;
       }
