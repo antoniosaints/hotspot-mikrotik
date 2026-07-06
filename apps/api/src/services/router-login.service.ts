@@ -30,6 +30,35 @@ export function chapMd5Password(chapId: string, password: string, chapChallenge:
     .digest("hex");
 }
 
+// O login e feito por navegacao GET (e nao form POST) porque o portal roda em
+// HTTPS e o roteador em HTTP: form POST https->http dispara o aviso
+// "informacoes nao protegidas" do navegador; navegacao de nivel superior nao.
+// O hotspot MikroTik aceita /login?username=...&password=...&dst=...
+export function buildLoginUrl(action: string, fields: Record<string, string>) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(fields)) {
+    params.set(key, value);
+  }
+
+  return `${action}${action.includes("?") ? "&" : "?"}${params.toString()}`;
+}
+
+function buildRedirectHtml(url: string) {
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="0;url=${escapeHtml(url)}">
+  <title>Conectando</title>
+</head>
+<body>
+  <p>Conectando...</p>
+  <script>window.location.replace(${JSON.stringify(url)});</script>
+  <noscript><a href="${escapeHtml(url)}">Clique aqui para conectar</a></noscript>
+</body>
+</html>`;
+}
+
 export function buildFinalLoginHtml(input: FinalLoginHtmlInput): string {
   const linkLoginOnly = cleanRouterValue(input.linkLoginOnly);
   const linkLogin = cleanRouterValue(input.linkLogin);
@@ -39,23 +68,14 @@ export function buildFinalLoginHtml(input: FinalLoginHtmlInput): string {
 
   if (chapId && chapChallenge && linkLoginOnly) {
     const hashedPassword = chapMd5Password(chapId, input.password, chapChallenge);
+    const url = buildLoginUrl(linkLoginOnly, {
+      username: input.username,
+      password: hashedPassword,
+      dst,
+      popup: "true",
+    });
 
-    return `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <title>Conectando</title>
-</head>
-<body>
-  <form name="sendin" method="post" action="${escapeHtml(linkLoginOnly)}">
-    <input type="hidden" name="username" value="${escapeHtml(input.username)}">
-    <input type="hidden" name="password" value="${hashedPassword}">
-    <input type="hidden" name="dst" value="${escapeHtml(dst)}">
-    <input type="hidden" name="popup" value="true">
-  </form>
-  <script>document.sendin.submit();</script>
-</body>
-</html>`;
+    return buildRedirectHtml(url);
   }
 
   const action = linkLogin ?? linkLoginOnly;
@@ -63,22 +83,14 @@ export function buildFinalLoginHtml(input: FinalLoginHtmlInput): string {
     throw new Error("Login PAP incompleto: linkLogin ou linkLoginOnly deve ser informado.");
   }
 
-  return `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <title>Conectando</title>
-</head>
-<body>
-  <form id="sendin" method="post" action="${escapeHtml(action)}">
-    <input type="hidden" name="username" value="${escapeHtml(input.username)}">
-    <input type="hidden" name="password" value="${escapeHtml(input.password)}">
-    <input type="hidden" name="dst" value="${escapeHtml(dst)}">
-    <input type="hidden" name="popup" value="true">
-  </form>
-  <script>document.getElementById("sendin").submit();</script>
-</body>
-</html>`;
+  const url = buildLoginUrl(action, {
+    username: input.username,
+    password: input.password,
+    dst,
+    popup: "true",
+  });
+
+  return buildRedirectHtml(url);
 }
 
 function cleanRouterValue(value: string | null | undefined) {
