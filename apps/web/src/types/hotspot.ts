@@ -51,6 +51,13 @@ export type Hotspot = EntityBase & {
   nome: string;
   slug: string;
   portalUrl: string;
+  portalLogoUrl: string | null;
+  portalTitulo: string | null;
+  portalSubtitulo: string | null;
+  portalRodape: string | null;
+  portalCorFundo: string | null;
+  portalCorFundoFim: string | null;
+  portalCorTexto: string | null;
   urlPosLogin: string | null;
   loginVoucher: boolean;
   loginCpf: boolean;
@@ -203,6 +210,13 @@ export type PortalInfo = {
     | "nome"
     | "slug"
     | "portalUrl"
+    | "portalLogoUrl"
+    | "portalTitulo"
+    | "portalSubtitulo"
+    | "portalRodape"
+    | "portalCorFundo"
+    | "portalCorFundoFim"
+    | "portalCorTexto"
     | "loginVoucher"
     | "loginCpf"
     | "loginIntegracao"

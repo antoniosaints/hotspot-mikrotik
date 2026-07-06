@@ -1,12 +1,12 @@
 <template>
-  <main class="portal-shell">
+  <main class="portal-shell" :style="portalThemeStyle">
     <div class="portal-app">
       <section class="brand">
-        <div class="brand-badge">
-          <img class="brand-logo" src="/img/logo.png" alt="Logo CAS Internet" />
+        <div v-if="portalLogoUrl" class="brand-badge">
+          <img class="brand-logo" :src="portalLogoUrl" alt="Logo do portal" />
         </div>
-        <h1 class="font-bold">ACESSO CAS INTERNET</h1>
-        <p>Conecte-se a internet de forma rapida e segura</p>
+        <h1 class="font-bold">{{ portalTitle }}</h1>
+        <p>{{ portalSubtitle }}</p>
       </section>
 
       <section class="portal-card">
@@ -320,7 +320,7 @@
         </div>
       </section>
 
-      <div class="footer">CAS Internet - Acesso Hotspot</div>
+      <div class="footer">{{ portalFooter }}</div>
     </div>
   </main>
 </template>
@@ -416,6 +416,18 @@ const tabs = computed(() => {
   if (portal.value?.loginTypes.ixc) enabled.push({ label: "Integracao", value: "ixc" });
   return enabled;
 });
+const portalLogoUrl = computed(() => portal.value?.hotspot.portalLogoUrl || "/img/logo.png");
+const portalTitle = computed(() => portal.value?.hotspot.portalTitulo || "ACESSO CAS INTERNET");
+const portalSubtitle = computed(() => portal.value?.hotspot.portalSubtitulo || "Conecte-se a internet de forma rapida e segura");
+const portalFooter = computed(() => portal.value?.hotspot.portalRodape || "CAS Internet - Acesso Hotspot");
+const portalBackgroundStart = computed(() => portal.value?.hotspot.portalCorFundo || "#00aeef");
+const portalBackgroundEnd = computed(() => portal.value?.hotspot.portalCorFundoFim || "#005e9e");
+const portalBrandTextColor = computed(() => portal.value?.hotspot.portalCorTexto || "#ffffff");
+const portalThemeStyle = computed(() => ({
+  "--portal-bg-start": portalBackgroundStart.value,
+  "--portal-bg-end": portalBackgroundEnd.value,
+  "--portal-brand-text": portalBrandTextColor.value,
+}));
 const selectedPlan = computed(() => portal.value?.hotspot.planos.find((plan) => plan.id === selectedPlanId.value) ?? null);
 const customMinMinutes = computed(() => Math.max(1, portal.value?.hotspot.tempoPersonalizadoMinimo ?? 10));
 const configuredCustomMaxMinutes = computed(() => portal.value?.hotspot.tempoPersonalizadoMaximo ?? customMinMinutes.value);
@@ -1176,7 +1188,7 @@ onBeforeUnmount(stopPurchasePolling);
   min-height: 100vh;
   background:
     radial-gradient(circle at top, #0737572d, transparent 34%),
-    linear-gradient(180deg, #00aeef 0%, #005e9e 100%);
+    linear-gradient(180deg, var(--portal-bg-start, #00aeef) 0%, var(--portal-bg-end, #005e9e) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1191,7 +1203,7 @@ onBeforeUnmount(stopPurchasePolling);
 
 .brand {
   text-align: center;
-  color: #fff;
+  color: var(--portal-brand-text, #fff);
   margin-bottom: 22px;
 }
 
@@ -1538,8 +1550,9 @@ input:focus {
 .footer {
   text-align: center;
   margin-top: 14px;
-  color: #94a3b8;
+  color: var(--portal-brand-text, #fff);
   font-size: 12px;
+  opacity: 0.72;
 }
 
 .uppercase {

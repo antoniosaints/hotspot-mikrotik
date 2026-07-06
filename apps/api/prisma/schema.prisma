@@ -51,6 +51,13 @@ model Hotspot {
   nome        String
   slug        String     @unique
   portalUrl   String
+  portalLogoUrl String?
+  portalTitulo String?
+  portalSubtitulo String?
+  portalRodape String?
+  portalCorFundo String?
+  portalCorFundoFim String?
+  portalCorTexto String?
   urlPosLogin String?
   loginVoucher Boolean   @default(true)
   loginCpf    Boolean   @default(true)
