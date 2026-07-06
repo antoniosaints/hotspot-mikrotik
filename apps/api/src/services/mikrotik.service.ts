@@ -192,13 +192,24 @@ export async function createHotspotUser(
       throw new Error("Cliente RouterOS nao expoe /ip/hotspot/user.add.");
     }
 
-    await users.add({
-      name: username,
-      password,
-      profile,
-      "limit-uptime": `${minutes}m`,
-      ...(comment ? { comment } : {}),
-    });
+    try {
+      await users.add({
+        name: username,
+        password,
+        profile,
+        "limit-uptime": `${minutes}m`,
+        ...(comment ? { comment } : {}),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("input does not match any value of profile")) {
+        throw new Error(
+          `o profile "${profile}" nao existe neste MikroTik. Verifique /ip hotspot user profile no roteador e ajuste o campo "Profile padrao" no cadastro do MikroTik.`,
+        );
+      }
+
+      throw error;
+    }
   });
 }
 

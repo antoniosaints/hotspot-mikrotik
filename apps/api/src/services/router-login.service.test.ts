@@ -1,26 +1,38 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { buildFinalLoginHtml, buildMd5JsUrl } from "./router-login.service.js";
+import { buildFinalLoginHtml, chapMd5Password } from "./router-login.service.js";
+
+const CHAP_ID = "ô";
+const CHAP_CHALLENGE = Buffer.from("zsC6gTOc8b73lPKE2HjcMQ==", "base64").toString("latin1");
 
 describe("router-login.service", () => {
-  it("builds md5.js URL preserving host port", () => {
-    expect(buildMd5JsUrl("http://10.0.0.1:8080/login")).toBe("http://10.0.0.1:8080/md5.js");
+  it("computes the CHAP MD5 over raw latin1 bytes like MikroTik md5.js", () => {
+    const expected = createHash("md5")
+      .update(Buffer.from(CHAP_ID + "secret" + CHAP_CHALLENGE, "latin1"))
+      .digest("hex");
+
+    expect(chapMd5Password(CHAP_ID, "secret", CHAP_CHALLENGE)).toBe(expected);
+    expect(chapMd5Password(CHAP_ID, "secret", CHAP_CHALLENGE)).toMatch(/^[0-9a-f]{32}$/);
   });
 
-  it("builds CHAP form with hashed password calculation only", () => {
+  it("builds CHAP form with server-side hashed password and no external md5.js", () => {
     const html = buildFinalLoginHtml({
       linkLoginOnly: "http://10.0.0.1:8080/login",
       linkLogin: "http://10.0.0.1/login",
       username: "ABC123",
       password: "secret",
       dst: "http://example.com",
-      chapId: "\\001",
-      chapChallenge: "\\002",
+      chapId: CHAP_ID,
+      chapChallenge: CHAP_CHALLENGE,
     });
 
+    const expectedHash = chapMd5Password(CHAP_ID, "secret", CHAP_CHALLENGE);
+
     expect(html).toContain('name="sendin"');
-    expect(html).toContain('src="http://10.0.0.1:8080/md5.js"');
-    expect(html).toContain("hexMD5");
-    expect(html).toContain('name="password" value=""');
+    expect(html).toContain('action="http://10.0.0.1:8080/login"');
+    expect(html).toContain(`name="password" value="${expectedHash}"`);
+    expect(html).not.toContain("md5.js");
+    expect(html).not.toContain("hexMD5");
     expect(html).not.toContain('value="secret"');
   });
 
@@ -29,7 +41,7 @@ describe("router-login.service", () => {
       linkLoginOnly: "http://10.0.0.1/login",
       username: "ABC123",
       password: "secret",
-      chapId: "\\001",
+      chapId: CHAP_ID,
     });
 
     expect(html).toContain('action="http://10.0.0.1/login"');

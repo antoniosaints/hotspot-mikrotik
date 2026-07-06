@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export type FinalLoginHtmlInput = {
   linkLoginOnly?: string | null;
   linkLogin?: string | null;
@@ -17,13 +19,15 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
-function jsString(value: string) {
-  return JSON.stringify(value);
-}
-
-export function buildMd5JsUrl(linkLoginOnly: string): string {
-  const url = new URL(linkLoginOnly);
-  return `${url.protocol}//${url.host}/md5.js`;
+// Resposta CHAP do hotspot MikroTik: MD5(chap-id + senha + chap-challenge),
+// tratando cada char como um byte (latin1, 0x00-0xFF) — o mesmo resultado do
+// hexMD5 do md5.js servido pelo roteador. Calcular no servidor elimina o
+// <script src="http://<roteador>/md5.js">, que o navegador bloqueia como
+// mixed content quando o portal roda em HTTPS.
+export function chapMd5Password(chapId: string, password: string, chapChallenge: string): string {
+  return createHash("md5")
+    .update(Buffer.from(chapId + password + chapChallenge, "latin1"))
+    .digest("hex");
 }
 
 export function buildFinalLoginHtml(input: FinalLoginHtmlInput): string {
@@ -34,29 +38,22 @@ export function buildFinalLoginHtml(input: FinalLoginHtmlInput): string {
   const dst = input.dst?.trim() ?? "";
 
   if (chapId && chapChallenge && linkLoginOnly) {
-    const md5Url = buildMd5JsUrl(linkLoginOnly);
+    const hashedPassword = chapMd5Password(chapId, input.password, chapChallenge);
 
     return `<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <title>Conectando</title>
-  <script src="${escapeHtml(md5Url)}"></script>
 </head>
 <body>
   <form name="sendin" method="post" action="${escapeHtml(linkLoginOnly)}">
     <input type="hidden" name="username" value="${escapeHtml(input.username)}">
-    <input type="hidden" name="password" value="">
+    <input type="hidden" name="password" value="${hashedPassword}">
     <input type="hidden" name="dst" value="${escapeHtml(dst)}">
     <input type="hidden" name="popup" value="true">
   </form>
-  <script>
-    (function () {
-      var form = document.sendin;
-      form.password.value = hexMD5(${jsString(chapId)} + ${jsString(input.password)} + ${jsString(chapChallenge)});
-      form.submit();
-    })();
-  </script>
+  <script>document.sendin.submit();</script>
 </body>
 </html>`;
   }
