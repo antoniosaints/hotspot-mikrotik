@@ -159,8 +159,8 @@
               :class="{ selected: selectedIxcInvoiceId === invoice.id }"
               @click="selectedIxcInvoiceId = invoice.id"
             >
-              <strong>Fatura {{ invoice.id }}</strong>
-              <b>{{ invoice.valor }} - {{ formatDate(invoice.data_vencimento) }}</b>
+              <strong>Fatura - {{ formatDate(invoice.data_vencimento) }}</strong>
+              <b>{{ formatCurrency(invoice.valor) }}</b>
             </button>
           </div>
 
@@ -450,7 +450,18 @@ const purchaseStatusLabel = computed(() => {
 });
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleString("pt-BR");
+  return new Date(value).toLocaleDateString("pt-BR");
+}
+
+function formatCurrency(value: number | string): string {
+  const number = typeof value === "string"
+    ? Number(value.replace(/\D/g, "")) / 100
+    : value;
+
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(number);
 }
 
 function routerParamsStateKey(): string {
