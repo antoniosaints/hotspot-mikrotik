@@ -44,10 +44,10 @@ export function buildServer() {
 
       console.log(origin);
 
-      if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
-        cb(null, true);
-        return;
-      }
+      // if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
+      //   cb(null, true);
+      //   return;
+      // }
 
       // libera apenas esse domínio
       if (origin.endsWith(".cas.net.br")) {
@@ -58,7 +58,7 @@ export function buildServer() {
       cb(new Error("CORS bloqueado"), false);
     },
 
-    credentials: true,
+    // credentials: true,
   });
   app.register(sensible);
   app.register(jwt, {
