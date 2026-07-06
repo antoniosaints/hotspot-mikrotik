@@ -438,7 +438,7 @@ const selectedPlanNeedsForm = computed(() =>
       selectedPlan.value?.coletarEndereco,
   ),
 );
-const PAYMENT_WINDOW_MINUTES = 10;
+const PAYMENT_WINDOW_MINUTES = 4;
 
 const purchaseStatusLabel = computed(() => {
   if (purchaseStatus.value === "LIBERADO") return "acesso liberado";
