@@ -159,8 +159,8 @@
               :class="{ selected: selectedIxcInvoiceId === invoice.id }"
               @click="selectedIxcInvoiceId = invoice.id"
             >
-              <strong>Boleto {{ invoice.id }}</strong>
-              <b>{{ invoice.valor }}</b>
+              <strong>Fatura {{ invoice.id }}</strong>
+              <b>{{ invoice.valor }} - {{ formatDate(invoice.data_vencimento) }}</b>
             </button>
           </div>
 
@@ -371,7 +371,7 @@ const leadForm = reactive({
   whatsapp: "",
   cpf: "",
 });
-const ixcInvoices = ref<Array<{ id: string; valor: string }>>([]);
+const ixcInvoices = ref<Array<{ id: string; valor: string, data_vencimento: string }>>([]);
 const selectedIxcInvoiceId = ref("");
 type IxcPix = { pixCopiaECola: string; qrCode: string; imagemQrcode: string; imageSrc: string };
 type IxcPaymentState = {
@@ -448,6 +448,10 @@ const purchaseStatusLabel = computed(() => {
   if (purchaseStatus.value === "ENCERRADA") return "tempo comprado encerrado";
   return "aguardando pagamento";
 });
+
+function formatDate(value: string): string {
+  return new Date(value).toLocaleString("pt-BR");
+}
 
 function routerParamsStateKey(): string {
   return `hotspot_router_params_${slug.value}`;
@@ -911,7 +915,7 @@ async function loadIxcInvoices(): Promise<void> {
   loading.value = true;
   error.value = "";
   try {
-    const response = await api.post<{ status: string; invoices: Array<{ id: string; valor: string }> }>("/portal/ixc/invoices", {
+    const response = await api.post<{ status: string; invoices: Array<{ id: string; valor: string, data_vencimento: string }> }>("/portal/ixc/invoices", {
       hotspotSlug: slug.value,
       cpf: cpf.value,
     });
