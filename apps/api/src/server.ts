@@ -90,13 +90,16 @@ const currentFileUrl = pathToFileURL(process.argv[1] ?? "").href;
 
 async function start() {
   const app = buildServer();
+  let stopExpirationSweep: (() => void) | undefined;
+
+  // Hooks precisam ser registrados antes do listen().
+  app.addHook("onClose", async () => {
+    stopExpirationSweep?.();
+  });
 
   try {
     await app.listen({ port: config.port, host: "0.0.0.0" });
-    const stopExpirationSweep = startExpirationSweep(app.log);
-    app.addHook("onClose", async () => {
-      stopExpirationSweep();
-    });
+    stopExpirationSweep = startExpirationSweep(app.log);
   } catch (error) {
     app.log.error(error);
     process.exit(1);
