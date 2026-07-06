@@ -3,7 +3,7 @@
     <div class="portal-app">
       <section class="brand">
         <div class="brand-badge">
-          <img class="brand-logo" src="../assets/img/LOGO_CAS.png" alt="Logo CAS Internet" />
+          <img class="brand-logo" src="/img/logo.png" alt="Logo CAS Internet" />
         </div>
         <h1 class="font-bold">ACESSO CAS INTERNET</h1>
         <p>Conecte-se a internet de forma rapida e segura</p>

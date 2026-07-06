@@ -39,7 +39,6 @@
 <script setup lang="ts">
 import {
   Gauge,
-  KeyRound,
   Link2,
   LogOut,
   MapPinned,
