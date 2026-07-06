@@ -42,6 +42,8 @@ export function buildServer() {
         return;
       }
 
+      console.log(origin);
+
       if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
         cb(null, true);
         return;
