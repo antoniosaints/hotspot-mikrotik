@@ -153,7 +153,7 @@ describe("portal voucher login", () => {
         },
       });
 
-      expect(response.statusCode).toBe(502);
+      expect(response.statusCode).toBe(503);
       expect(response.json()).toEqual({ error: "mikrotik offline" });
       expect(voucherCompensate).toHaveBeenCalledWith({
         where: { id: "voucher-1", usado: true },

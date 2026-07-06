@@ -532,7 +532,11 @@ export async function portalRoutes(app: FastifyInstance) {
           );
         } catch (error) {
           const message = error instanceof Error ? error.message : "Falha desconhecida na integracao IXC.";
-          return reply.status(502).send({ error: `Nao foi possivel consultar a integracao IXC. ${message}` });
+          request.log.error({ err: error }, "Falha na integracao IXC durante login do portal");
+          // 503 (e nao 502/504): o Cloudflare intercepta 502/504 da origem e
+          // devolve a pagina de erro dele sem headers CORS, escondendo a
+          // mensagem real do portal.
+          return reply.status(503).send({ error: `Nao foi possivel consultar a integracao IXC. ${message}` });
         }
 
         if (!ixcValidation.allowed) {
@@ -601,7 +605,10 @@ export async function portalRoutes(app: FastifyInstance) {
         }
 
         const message = error instanceof Error ? error.message : "Falha desconhecida ao comunicar com o MikroTik.";
-        return reply.status(502).send({ error: message });
+        request.log.error({ err: error }, "Falha ao criar usuario hotspot no MikroTik durante login do portal");
+        // 503 (e nao 502/504): o Cloudflare intercepta 502/504 da origem e
+        // devolve a pagina de erro dele sem headers CORS.
+        return reply.status(503).send({ error: message });
       }
 
       await prisma.$transaction(async (tx) => {
