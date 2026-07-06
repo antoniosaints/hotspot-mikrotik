@@ -3,11 +3,9 @@
     <Card class="w-full max-w-md">
       <template #header>
         <div class="flex items-center gap-3">
-          <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <KeyRound class="h-5 w-5" />
-          </div>
+          <img src="/img/logo.png" class="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground" />
           <div>
-            <h1 class="text-lg font-semibold">Hotspot Admin</h1>
+            <h1 class="text-lg font-semibold">Hotspot CAS</h1>
             <p class="text-sm text-muted-foreground">Acesse o painel operacional</p>
           </div>
         </div>

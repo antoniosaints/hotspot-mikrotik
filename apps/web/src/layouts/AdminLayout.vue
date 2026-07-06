@@ -91,13 +91,12 @@ const SidebarContent = defineComponent({
       h("div", { class: "flex h-full flex-col" }, [
         h("div", { class: "mb-8 flex items-center gap-3 px-2" }, [
           h(
-            "div",
-            { class: "flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground" },
-            [h(KeyRound, { class: "h-5 w-5" })],
+            "img",
+            { class: "flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground", src: "/img/logo.png" },
           ),
           h("div", [
-            h("p", { class: "text-sm font-semibold" }, "Hotspot Admin"),
-            h("p", { class: "text-xs text-muted-foreground" }, "MikroTik control plane"),
+            h("p", { class: "text-sm font-semibold" }, "Hotspot CAS"),
+            h("p", { class: "text-xs text-muted-foreground" }, "Controle de Hotspot CAS"),
           ]),
         ]),
         h(
