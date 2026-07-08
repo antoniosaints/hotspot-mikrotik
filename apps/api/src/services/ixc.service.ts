@@ -15,6 +15,7 @@ type IxcListResponse<T> = {
 
 type IxcCliente = {
   id?: string;
+  razao?: string;
 };
 
 type IxcContrato = {
@@ -24,7 +25,7 @@ type IxcContrato = {
 };
 
 export type IxcValidationResult =
-  | { allowed: true; clienteId: string; contratoId: string }
+  | { allowed: true; clienteId: string; contratoId: string, nome: string }
   | { allowed: false; code: "CLIENTE_NAO_ENCONTRADO"; reason: string }
   | { allowed: false; code: "CLIENTE_COM_DEBITOS"; clienteId: string; reason: string };
 
@@ -132,7 +133,7 @@ export async function validateIxcLogin(config: IxcConfig, cpfCnpj: string): Prom
     return { allowed: false, code: "CLIENTE_COM_DEBITOS", clienteId: cliente.id, reason: "Login nao permitido: cliente contem debitos." };
   }
 
-  return { allowed: true, clienteId: cliente.id, contratoId: contratoValido.id };
+  return { allowed: true, clienteId: cliente.id, contratoId: contratoValido.id, nome: cliente.razao || cliente.id };
 }
 
 function formatBrDate(date: Date) {

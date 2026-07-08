@@ -604,7 +604,7 @@ export async function portalRoutes(app: FastifyInstance) {
           password,
           hotspot.integracaoTempoMinutos,
           hotspot.mikrotik.profilePadrao,
-          "Hotspot IXC",
+          "Hotspot IXC - " + validation.nome,
           hotspot.servidorHotspot,
         );
       }
