@@ -7,9 +7,10 @@ import {
   buildMikrotikAloginHtml,
   buildMikrotikLoginHtml,
   buildMikrotikLogoutHtml,
+  buildMikrotikServerLoginHtml,
   buildMikrotikStatusHtml,
 } from "../../services/template.service.js";
-import { listHotspotUsers, removeHotspotUserById, testConnection } from "../../services/mikrotik.service.js";
+import { listHotspotServers, listHotspotUsers, removeHotspotUserById, testConnection } from "../../services/mikrotik.service.js";
 import { normalizeCpf, normalizeVoucherCode } from "../../utils/normalization.js";
 import { sendCrudError } from "../../utils/http.js";
 import { AdminRole, requireAnyRole } from "../auth/permissions.js";
@@ -77,6 +78,14 @@ const hotspotCreateSchema = z.object({
   tempoPersonalizadoPasso: z.number().int().positive().optional(),
   conexoesPersonalizado: z.number().int().positive().optional(),
   ativo: z.boolean().optional(),
+  servidorHotspot: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((value) => {
+      const trimmed = value?.trim();
+      return trimmed ? trimmed : null;
+    }),
   localId: z.string().min(1),
   mikrotikId: z.string().min(1),
   integracaoId: z.string().optional().nullable(),
@@ -148,7 +157,7 @@ const planoCreateSchema = z.object({
   coletarEmail: z.boolean().optional(),
   coletarCpf: z.boolean().optional(),
   coletarEndereco: z.boolean().optional(),
-  hotspotId: z.string().min(1),
+  hotspotIds: z.array(z.string().min(1)).min(1),
 });
 const planoUpdateSchema = planoCreateSchema.partial();
 
@@ -177,10 +186,21 @@ type CrudDelegate<TCreate, TUpdate> = {
 
 const VOUCHER_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 type HotspotFile = z.infer<typeof hotspotFileParamsSchema>["file"];
-type HotspotTemplateData = { portalUrl: string; slug: string; urlPosLogin: string | null };
+type HotspotTemplateData = {
+  portalUrl: string;
+  slug: string;
+  urlPosLogin: string | null;
+  mikrotikId: string;
+  servidorHotspot: string | null;
+};
 
 const hotspotFileBuilders: Record<HotspotFile, (hotspot: HotspotTemplateData) => string> = {
-  login: (hotspot) => buildMikrotikLoginHtml(hotspot.portalUrl, hotspot.slug),
+  // Com servidor hotspot definido, o login.html e compartilhado entre todos os
+  // hotspots do MikroTik: ele envia $(server-name) e o portal resolve o slug.
+  login: (hotspot) =>
+    hotspot.servidorHotspot
+      ? buildMikrotikServerLoginHtml(hotspot.portalUrl, hotspot.mikrotikId)
+      : buildMikrotikLoginHtml(hotspot.portalUrl, hotspot.slug),
   alogin: (hotspot) => buildMikrotikAloginHtml(hotspot.urlPosLogin ?? ""),
   status: () => buildMikrotikStatusHtml(),
   logout: () => buildMikrotikLogoutHtml(),
@@ -385,6 +405,16 @@ export async function crudRoutes(app: FastifyInstance) {
     }
   });
 
+  app.get("/mikrotiks/:id/servers", { preHandler: managerPreHandler }, async (request, reply) => {
+    try {
+      const params = idParamsSchema.parse(request.params);
+      const mikrotik = await prisma.mikrotik.findUniqueOrThrow({ where: { id: params.id } });
+      return { servers: await listHotspotServers(mikrotik) };
+    } catch (error) {
+      return sendCrudError(reply, error);
+    }
+  });
+
   app.get("/mikrotiks/:id/users", { preHandler: managerPreHandler }, async (request, reply) => {
     try {
       const params = idParamsSchema.parse(request.params);
@@ -523,10 +553,50 @@ export async function crudRoutes(app: FastifyInstance) {
     orderBy: { criadoEm: "desc" },
   }, { roles: [AdminRole.ADMIN, AdminRole.USER] });
 
-  registerCrud(app, "/planos", prisma.planoBilheteria, planoCreateSchema, planoUpdateSchema, {
-    include: { hotspot: true },
-    orderBy: { criadoEm: "desc" },
-  }, { roles: [AdminRole.ADMIN, AdminRole.MANAGER] });
+  // Planos tem CRUD proprio porque o vinculo com hotspots e N:N (hotspotIds).
+  const planoInclude = { hotspots: { select: { id: true, nome: true } } } as const;
+
+  app.get("/planos", { preHandler: managerPreHandler }, async () =>
+    prisma.plano.findMany({ include: planoInclude, orderBy: { criadoEm: "desc" } }),
+  );
+
+  app.post("/planos", { preHandler: managerPreHandler }, async (request, reply) => {
+    try {
+      const { hotspotIds, ...data } = planoCreateSchema.parse(request.body);
+      return await prisma.plano.create({
+        data: { ...data, hotspots: { connect: hotspotIds.map((id) => ({ id })) } },
+        include: planoInclude,
+      });
+    } catch (error) {
+      return sendCrudError(reply, error);
+    }
+  });
+
+  app.put("/planos/:id", { preHandler: managerPreHandler }, async (request, reply) => {
+    try {
+      const params = idParamsSchema.parse(request.params);
+      const { hotspotIds, ...data } = planoUpdateSchema.parse(request.body);
+      return await prisma.plano.update({
+        where: { id: params.id },
+        data: {
+          ...data,
+          ...(hotspotIds ? { hotspots: { set: hotspotIds.map((id) => ({ id })) } } : {}),
+        },
+        include: planoInclude,
+      });
+    } catch (error) {
+      return sendCrudError(reply, error);
+    }
+  });
+
+  app.delete("/planos/:id", { preHandler: managerPreHandler }, async (request, reply) => {
+    try {
+      const params = idParamsSchema.parse(request.params);
+      return await prisma.plano.delete({ where: { id: params.id } });
+    } catch (error) {
+      return sendCrudError(reply, error);
+    }
+  });
 
   app.get("/prospeccoes", { preHandler: managerPreHandler }, async (request) => {
     const query = z.object({

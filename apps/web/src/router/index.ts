@@ -1,8 +1,10 @@
 import { createRouter, createWebHistory } from "vue-router";
 
 import AdminLayout from "@/layouts/AdminLayout.vue";
-import BilheteriaPage from "@/pages/BilheteriaPage.vue";
+import PlanosPage from "@/pages/PlanosPage.vue";
 import CadastrosTelasPage from "@/pages/CadastrosTelasPage.vue";
+import CampanhasPage from "@/pages/CampanhasPage.vue";
+import ConfiguracoesPage from "@/pages/ConfiguracoesPage.vue";
 import CpfLoginsPage from "@/pages/CpfLoginsPage.vue";
 import DashboardPage from "@/pages/DashboardPage.vue";
 import HotspotsPage from "@/pages/HotspotsPage.vue";
@@ -11,6 +13,7 @@ import LocaisPage from "@/pages/LocaisPage.vue";
 import LoginPage from "@/pages/LoginPage.vue";
 import MikrotiksPage from "@/pages/MikrotiksPage.vue";
 import PortalPage from "@/pages/PortalPage.vue";
+import PortalResolvePage from "@/pages/PortalResolvePage.vue";
 import ProspeccoesPage from "@/pages/ProspeccoesPage.vue";
 import UsuariosPage from "@/pages/UsuariosPage.vue";
 import VouchersPage from "@/pages/VouchersPage.vue";
@@ -28,6 +31,14 @@ const router = createRouter({
       name: "login",
       component: LoginPage,
       meta: { title: "Login" },
+    },
+    {
+      // Entrada do login.html compartilhado por MikroTik: resolve o hotspot
+      // pelo servidor de origem ($(server-name)) e redireciona para o portal.
+      path: "/portal/mk/:mikrotikId",
+      name: "portal-resolve",
+      component: PortalResolvePage,
+      meta: { title: "Portal" },
     },
     {
       path: "/portal/:slug",
@@ -76,10 +87,27 @@ const router = createRouter({
           meta: { title: "Telas de cadastro", requiresAuth: true, roles: ["admin", "manager"] },
         },
         {
+          path: "campanhas",
+          name: "campanhas",
+          component: CampanhasPage,
+          meta: { title: "Campanhas", requiresAuth: true, roles: ["admin", "manager"] },
+        },
+        {
+          path: "configuracoes",
+          name: "configuracoes",
+          component: ConfiguracoesPage,
+          meta: { title: "Configuracoes", requiresAuth: true, roles: ["admin"] },
+        },
+        {
+          path: "planos",
+          name: "planos",
+          component: PlanosPage,
+          meta: { title: "Planos", requiresAuth: true, roles: ["admin", "manager"] },
+        },
+        {
+          // Compatibilidade com links antigos da Bilheteria.
           path: "bilheteria",
-          name: "bilheteria",
-          component: BilheteriaPage,
-          meta: { title: "Bilheteria", requiresAuth: true, roles: ["admin", "manager"] },
+          redirect: "/planos",
         },
         {
           path: "prospeccoes",

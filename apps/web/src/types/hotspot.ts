@@ -71,6 +71,7 @@ export type Hotspot = EntityBase & {
   tempoPersonalizadoPasso: number;
   conexoesPersonalizado: number;
   ativo: boolean;
+  servidorHotspot: string | null;
   localId: string;
   mikrotikId: string;
   integracaoId: string | null;
@@ -83,7 +84,7 @@ export type Hotspot = EntityBase & {
   cadastroTela?: CadastroTela | null;
 };
 
-export type PlanoBilheteria = EntityBase & {
+export type Plano = EntityBase & {
   nome: string;
   tempoMinutos: number;
   conexoesSimultaneas: number;
@@ -94,8 +95,15 @@ export type PlanoBilheteria = EntityBase & {
   coletarEmail: boolean;
   coletarCpf: boolean;
   coletarEndereco: boolean;
-  hotspotId: string;
-  hotspot?: Hotspot;
+  hotspots?: Array<Pick<Hotspot, "id" | "nome">>;
+};
+
+export type MikrotikHotspotServer = {
+  id: string;
+  name: string;
+  interface: string;
+  profile: string;
+  disabled: string;
 };
 
 export type CompraAcesso = EntityBase & {
@@ -117,7 +125,7 @@ export type CompraAcesso = EntityBase & {
   hotspotId: string;
   planoId: string | null;
   hotspot?: Hotspot;
-  plano?: PlanoBilheteria | null;
+  plano?: Plano | null;
 };
 
 export type Voucher = EntityBase & {
@@ -203,7 +211,100 @@ export type DashboardData = {
   }>;
 };
 
+export type Configuracao = EntityBase & {
+  termosUso: string;
+  politicaPrivacidade: string;
+  lgpdConsentimentoTexto: string;
+  lgpdVersao: string;
+  exigirConsentimento: boolean;
+  encarregadoNome: string | null;
+  encarregadoEmail: string | null;
+  empresaNome: string | null;
+  empresaDocumento: string | null;
+};
+
+export type ConsentimentoLgpd = EntityBase & {
+  hotspotId: string;
+  versaoTermos: string;
+  ip: string | null;
+  mac: string | null;
+  userAgent: string | null;
+  aceitoEm: string;
+  hotspot?: Pick<Hotspot, "id" | "nome" | "slug">;
+};
+
+export type CampanhaTipo = "IMAGEM" | "VIDEO" | "HTML" | "CUSTOM";
+export type CampanhaMomento = "ANTES_LOGIN" | "DEPOIS_LOGIN";
+export type CampanhaExibicao = "SEMPRE" | "UMA_VEZ" | "POR_SESSAO";
+
+export type CampanhaBloco =
+  | { tipo: "titulo"; texto: string }
+  | { tipo: "texto"; texto: string }
+  | { tipo: "imagem"; url: string }
+  | { tipo: "video"; url: string }
+  | { tipo: "botao"; texto: string; url: string };
+
+export type Campanha = EntityBase & {
+  nome: string;
+  tipo: CampanhaTipo;
+  momento: CampanhaMomento;
+  ativo: boolean;
+  prioridade: number;
+  dataInicio: string | null;
+  dataFim: string | null;
+  diasSemana: string;
+  horaInicio: string | null;
+  horaFim: string | null;
+  exibicao: CampanhaExibicao;
+  duracaoSegundos: number | null;
+  permitePular: boolean;
+  ctaTexto: string | null;
+  ctaUrl: string | null;
+  imagemUrl: string | null;
+  videoUrl: string | null;
+  htmlConteudo: string | null;
+  titulo: string | null;
+  subtitulo: string | null;
+  texto: string | null;
+  corFundo: string | null;
+  corTexto: string | null;
+  blocos: string | null;
+  todosHotspots: boolean;
+  hotspots?: Array<Pick<Hotspot, "id" | "nome">>;
+};
+
+// Campanha enxuta entregue ao portal publico (render em CampanhaView).
+export type PortalCampanha = Pick<
+  Campanha,
+  | "id"
+  | "tipo"
+  | "momento"
+  | "duracaoSegundos"
+  | "permitePular"
+  | "exibicao"
+  | "ctaTexto"
+  | "ctaUrl"
+  | "imagemUrl"
+  | "videoUrl"
+  | "htmlConteudo"
+  | "titulo"
+  | "subtitulo"
+  | "texto"
+  | "corFundo"
+  | "corTexto"
+  | "blocos"
+>;
+
+export type PortalLgpd = {
+  exigir: boolean;
+  versao: string;
+  consentimentoTexto: string;
+  termosUso: string;
+  politicaPrivacidade: string;
+};
+
 export type PortalInfo = {
+  lgpd: PortalLgpd;
   hotspot: Pick<
     Hotspot,
     | "id"
@@ -235,7 +336,7 @@ export type PortalInfo = {
     cadastroTela?: CadastroTela | null;
     planos: Array<
       Pick<
-        PlanoBilheteria,
+        Plano,
         | "id"
         | "nome"
         | "tempoMinutos"

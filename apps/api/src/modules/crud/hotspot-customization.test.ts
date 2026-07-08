@@ -16,7 +16,7 @@ const prismaMock = vi.hoisted(() => ({
   voucher: {},
   cadastroTela: {},
   cpfLogin: {},
-  planoBilheteria: {},
+  plano: {},
   compraAcesso: {},
   leadContratacao: {},
   $disconnect: vi.fn(),

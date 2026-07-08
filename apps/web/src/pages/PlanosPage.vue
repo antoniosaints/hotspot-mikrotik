@@ -1,8 +1,8 @@
 <template>
   <CrudPage
-    title="Bilheteria"
+    title="Planos"
     singular-title="plano"
-    description="Planos vendidos no portal de compra de acesso."
+    description="Planos vendidos no portal de compra de acesso. Cada plano pode ser vinculado a um ou mais hotspots."
     endpoint="/planos"
     :columns="columns"
     :fields="fields"
@@ -91,7 +91,7 @@ import Dialog from "@/components/ui/Dialog.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
-import CrudPage, { type CrudColumn, type CrudField } from "@/pages/CrudPage.vue";
+import CrudPage, { type CrudColumn, type CrudField, type CrudRecord } from "@/pages/CrudPage.vue";
 import { api, ApiError } from "@/services/api";
 import type { Hotspot } from "@/types/hotspot";
 
@@ -112,9 +112,21 @@ const customForm = reactive({
   conexoesPersonalizado: 1,
 });
 
+function hotspotNames(item: CrudRecord): string {
+  const linked = item.hotspots;
+  if (!Array.isArray(linked) || linked.length === 0) return "-";
+  return linked.map((hotspot) => String((hotspot as { nome?: string }).nome ?? "")).filter(Boolean).join(", ");
+}
+
+function hotspotIdsFrom(item: CrudRecord): string[] {
+  const linked = item.hotspots;
+  if (!Array.isArray(linked)) return [];
+  return linked.map((hotspot) => String((hotspot as { id?: string }).id ?? "")).filter(Boolean);
+}
+
 const columns: CrudColumn[] = [
   { key: "nome", label: "Plano" },
-  { key: "hotspot.nome", label: "Hotspot" },
+  { key: "hotspots", label: "Hotspots", format: hotspotNames },
   { key: "tempoMinutos", label: "Min" },
   { key: "conexoesSimultaneas", label: "Conexoes" },
   { key: "valorCentavos", label: "Valor centavos" },
@@ -122,12 +134,15 @@ const columns: CrudColumn[] = [
 ];
 
 const fields = computed<CrudField[]>(() => [
-  { key: "nome", label: "Nome do plano", type: "text" },
+  { key: "nome", label: "Nome do plano", type: "text", full: true },
   {
-    key: "hotspotId",
-    label: "Hotspot",
-    type: "select",
+    key: "hotspotIds",
+    label: "Hotspots",
+    type: "multiselect",
+    full: true,
     options: hotspots.value.map((hotspot) => ({ label: hotspot.nome, value: hotspot.id })),
+    getValue: hotspotIdsFrom,
+    help: "Selecione em quais hotspots este plano fica disponivel para compra.",
   },
   { key: "tempoMinutos", label: "Tempo de sessao (min)", type: "number", defaultValue: 60 },
   { key: "conexoesSimultaneas", label: "Conexoes simultaneas", type: "number", defaultValue: 1 },

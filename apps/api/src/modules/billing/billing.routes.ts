@@ -161,6 +161,7 @@ async function releasePurchase(compraId: string) {
           purchaseMinutes + LIMIT_UPTIME_SAFETY_MINUTES,
           compra.hotspot.mikrotik.profilePadrao,
           "Hotspot COMPRA",
+          compra.hotspot.servidorHotspot,
         );
       }
     }
@@ -428,6 +429,7 @@ export async function billingRoutes(app: FastifyInstance) {
             null,
             compra.hotspot.mikrotik.profilePadrao,
             "Hotspot COMPRA_PENDENTE",
+            compra.hotspot.servidorHotspot,
           );
         } catch (error) {
           const message = error instanceof Error ? error.message : "";

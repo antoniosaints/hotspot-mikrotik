@@ -75,6 +75,7 @@
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">Usuario</th>
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">IP/MAC</th>
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">Local/Hotspot</th>
+            <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">Server</th>
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">MikroTik</th>
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">Tempo</th>
             <th class="px-4 py-3 text-right text-xs uppercase tracking-[0.12em] text-muted-foreground">Acao</th>
@@ -82,7 +83,7 @@
         </thead>
         <tbody class="divide-y divide-border">
           <tr v-if="(data?.activeClients ?? []).length === 0">
-            <td colspan="6" class="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum cliente ativo encontrado.</td>
+            <td colspan="7" class="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum cliente ativo encontrado.</td>
           </tr>
           <tr v-for="client in data?.activeClients ?? []" :key="`${client.mikrotikId}-${client.id}`">
             <td class="px-4 py-3 text-sm">
@@ -91,6 +92,7 @@
             </td>
             <td class="px-4 py-3 text-sm text-muted-foreground">{{ client.ip }} / {{ client.mac }}</td>
             <td class="px-4 py-3 text-sm">{{ client.localNome }} / {{ client.hotspotNome }}</td>
+            <td class="px-4 py-3 text-sm">{{ client.server }}</td>
             <td class="px-4 py-3 text-sm">{{ client.mikrotikNome }}</td>
             <td class="px-4 py-3 text-sm">{{ client.uptime }}</td>
             <td class="px-4 py-3 text-right">

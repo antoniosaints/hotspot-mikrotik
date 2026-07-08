@@ -9,4 +9,5 @@ apps/api/data/*.db
 apps/api/data/*.db-*
 apps/api/data/*.sqlite
 apps/api/data/*.sqlite-*
+apps/api/data/uploads/
 apps/api/prisma/migrations/

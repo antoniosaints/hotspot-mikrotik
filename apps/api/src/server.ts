@@ -12,6 +12,9 @@ import { startExpirationSweep } from "./modules/billing/expiration.service.js";
 import { crudRoutes } from "./modules/crud/crud.routes.js";
 import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
 import { portalRoutes } from "./modules/portal/portal.routes.js";
+import { uploadsRoutes } from "./modules/uploads/uploads.routes.js";
+import { settingsRoutes } from "./modules/settings/settings.routes.js";
+import { campaignsRoutes } from "./modules/campaigns/campaigns.routes.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -75,6 +78,9 @@ export function buildServer() {
       await api.register(dashboardRoutes);
       await api.register(billingRoutes);
       await api.register(portalRoutes);
+      await api.register(uploadsRoutes);
+      await api.register(settingsRoutes);
+      await api.register(campaignsRoutes);
     },
     { prefix: "/api" },
   );

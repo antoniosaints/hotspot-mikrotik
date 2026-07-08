@@ -77,7 +77,18 @@ function buildCasShell(title: string, subtitle: string, body: string, script = "
 
 export function buildMikrotikLoginHtml(baseUrl: string, hotspotSlug: string): string {
   const portalUrl = new URL(`/portal/${encodeURIComponent(hotspotSlug)}`, baseUrl).toString();
+  return buildMikrotikRedirectLoginHtml(portalUrl);
+}
 
+// Versao para MikroTik com varios servidores hotspot (um por interface/local):
+// um unico login.html na pasta padrao envia $(server-name) e o portal resolve
+// qual hotspot atende aquele servidor.
+export function buildMikrotikServerLoginHtml(baseUrl: string, mikrotikId: string): string {
+  const portalUrl = new URL(`/portal/mk/${encodeURIComponent(mikrotikId)}`, baseUrl).toString();
+  return buildMikrotikRedirectLoginHtml(portalUrl, '      appendHidden("server", "$(server-name)");\n');
+}
+
+function buildMikrotikRedirectLoginHtml(portalUrl: string, extraFieldsScript = ""): string {
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -125,7 +136,7 @@ export function buildMikrotikLoginHtml(baseUrl: string, hotspotSlug: string): st
       appendHidden("link-orig", "$(link-orig)");
       appendHidden("error", "$(error)");
       appendHidden("hotspot", "$(hotspot)");
-
+${extraFieldsScript}
       var chapId = "$(chap-id)";
       var chapChallenge = "$(chap-challenge)";
       var hasChap = chapId && chapChallenge && chapId.indexOf("$(") !== 0 && chapChallenge.indexOf("$(") !== 0;

@@ -61,6 +61,7 @@ describe("portal voucher login", () => {
       ativo: true,
       loginVoucher: true,
       loginCpf: false,
+      servidorHotspot: "hotspot-local-a",
       mikrotikId: "mikrotik-1",
       mikrotik: {
         id: "mikrotik-1",
@@ -123,6 +124,7 @@ describe("portal voucher login", () => {
         30,
         "default",
         "Hotspot VOUCHER",
+        "hotspot-local-a",
       );
       expect(acessoCreate).toHaveBeenCalledOnce();
     } finally {

@@ -36,7 +36,7 @@ const fields: CrudField[] = [
       {
         label: "Mercado Pago",
         value: "MERCADO_PAGO",
-        description: "Gera PIX para venda de planos da bilheteria.",
+        description: "Gera PIX para venda de planos de acesso.",
       },
     ],
   },

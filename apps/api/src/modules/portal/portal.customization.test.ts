@@ -4,6 +4,9 @@ const prismaMock = vi.hoisted(() => ({
   hotspot: {
     findUnique: vi.fn(),
   },
+  configuracao: {
+    upsert: vi.fn(),
+  },
   $disconnect: vi.fn(),
 }));
 
@@ -57,6 +60,20 @@ describe("portal customization payload", () => {
       pagamentoIntegracao: null,
       cadastroTela: null,
       planos: [],
+      lgpdModo: "GLOBAL",
+      termosUso: null,
+      politicaPrivacidade: null,
+      lgpdConsentimentoTexto: null,
+      exigirConsentimentoLgpd: null,
+    });
+
+    prismaMock.configuracao.upsert.mockResolvedValue({
+      id: "global",
+      termosUso: "",
+      politicaPrivacidade: "",
+      lgpdConsentimentoTexto: "Li e concordo.",
+      lgpdVersao: "1",
+      exigirConsentimento: true,
     });
   });
 

@@ -14,6 +14,21 @@
         <div v-if="error" class="alert">{{ error }}</div>
 
         <div v-if="activeScreen === 'home'" class="screen active">
+          <div v-if="needsConsent" class="consent-gate">
+            <h2 class="title">Antes de continuar</h2>
+            <p class="subtitle">Para usar a internet, leia e aceite os termos abaixo.</p>
+            <label class="consent-check">
+              <input v-model="consentChecked" type="checkbox" />
+              <span>{{ lgpd?.consentimentoTexto }}</span>
+            </label>
+            <div class="consent-links">
+              <button type="button" @click="showTermos = true">Termos de Uso</button>
+              <span aria-hidden="true">·</span>
+              <button type="button" @click="showPolitica = true">Politica de Privacidade</button>
+            </div>
+            <button class="primary" type="button" :disabled="!consentChecked" @click="acceptConsent">Continuar</button>
+          </div>
+          <template v-else-if="hasLoginOptions">
           <h2 class="title">Olá! Seja bem-vindo!</h2>
           <p class="subtitle">Escolha abaixo como deseja acessar a rede.</p>
 
@@ -44,7 +59,12 @@
               </span>
             </button>
 
-            <button type="button" class="menu-btn" @click="openContract">
+            <button
+              v-if="portal?.hotspot.cadastroTela?.ativo"
+              type="button"
+              class="menu-btn"
+              @click="openContract"
+            >
               <span class="icon"><Phone class="h-5 w-5" /></span>
               <span>
                 <strong>Quero contratar</strong>
@@ -78,8 +98,13 @@
               </span>
             </button>
           </div>
+          </template>
 
-          <p v-if="portal && tabs.length === 0 && !portal.loginTypes.compra" class="empty-state">Nenhum tipo de login esta ativo para este hotspot.</p>
+          <div v-else class="empty-state">
+            <span class="empty-icon"><WifiOff class="h-8 w-8" /></span>
+            <h2 class="empty-title">Acesso indisponível no momento</h2>
+            <p class="empty-text">Nenhuma forma de acesso está ativa para esta rede agora. Procure a equipe do local para liberar a sua conexão.</p>
+          </div>
         </div>
 
         <form v-else-if="activeScreen === 'cpf'" class="screen active" @submit.prevent="submit">
@@ -320,7 +345,41 @@
         </div>
       </section>
 
-      <div class="footer">{{ portalFooter }}</div>
+      <div class="footer">
+        {{ portalFooter }}
+        <div v-if="lgpd && (lgpd.termosUso || lgpd.politicaPrivacidade)" class="footer-links">
+          <button v-if="lgpd.termosUso" type="button" @click="showTermos = true">Termos de Uso</button>
+          <span v-if="lgpd.termosUso && lgpd.politicaPrivacidade" aria-hidden="true">·</span>
+          <button v-if="lgpd.politicaPrivacidade" type="button" @click="showPolitica = true">Politica de Privacidade</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overlay de campanha (antes/depois do login) -->
+    <div v-if="campanhaAtual" class="campanha-overlay">
+      <div class="campanha-overlay-card">
+        <CampanhaView :campanha="campanhaAtual" @continue="onCampanhaContinue" />
+      </div>
+    </div>
+
+    <!-- Modais LGPD -->
+    <div v-if="showTermos" class="doc-overlay" @click.self="showTermos = false">
+      <div class="doc-card">
+        <header class="doc-head">
+          <h2>Termos de Uso</h2>
+          <button type="button" aria-label="Fechar" @click="showTermos = false">×</button>
+        </header>
+        <div class="doc-body">{{ lgpd?.termosUso || "Nenhum termo cadastrado." }}</div>
+      </div>
+    </div>
+    <div v-if="showPolitica" class="doc-overlay" @click.self="showPolitica = false">
+      <div class="doc-card">
+        <header class="doc-head">
+          <h2>Politica de Privacidade</h2>
+          <button type="button" aria-label="Fechar" @click="showPolitica = false">×</button>
+        </header>
+        <div class="doc-body">{{ lgpd?.politicaPrivacidade || "Nenhuma politica cadastrada." }}</div>
+      </div>
     </div>
   </main>
 </template>
@@ -328,10 +387,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
-import { CreditCard, Phone, RadioTower, Ticket, UserRound } from "lucide-vue-next";
+import { CreditCard, Phone, RadioTower, Ticket, UserRound, WifiOff } from "lucide-vue-next";
 
 import { api, ApiError, apiUrl } from "@/services/api";
-import type { PortalInfo } from "@/types/hotspot";
+import CampanhaView from "@/components/ui/CampanhaView.vue";
+import type { PortalCampanha, PortalInfo } from "@/types/hotspot";
 
 const CUSTOM_PLAN_ID = "__custom__";
 type LoginScreen = "home" | "voucher" | "cpf" | "ixc" | "ixcNotFound" | "ixcInvoices" | "ixcPayment" | "purchase" | "payment" | "contract";
@@ -340,6 +400,16 @@ type LoginTab = "voucher" | "cpf" | "ixc";
 const route = useRoute();
 const slug = computed(() => String(route.params.slug));
 const portal = ref<PortalInfo | null>(null);
+
+// LGPD e campanhas
+const consentAceito = ref(false);
+const consentChecked = ref(false);
+const showTermos = ref(false);
+const showPolitica = ref(false);
+const campanhasAntes = ref<PortalCampanha[]>([]);
+const campanhasDepois = ref<PortalCampanha[]>([]);
+const campanhaAtual = ref<PortalCampanha | null>(null);
+const pendingLoginHtml = ref<string | null>(null);
 const activeTab = ref<LoginTab>("voucher");
 const activeScreen = ref<LoginScreen>("home");
 const voucher = ref("");
@@ -415,6 +485,20 @@ const tabs = computed(() => {
   if (portal.value?.loginTypes.cpf) enabled.push({ label: "CPF", value: "cpf" });
   if (portal.value?.loginTypes.ixc) enabled.push({ label: "Integracao", value: "ixc" });
   return enabled;
+});
+
+// Verdadeiro quando ha ao menos uma forma de acesso publicada (login, compra ou
+// cadastro). Quando falso, o portal exibe o estado vazio em vez do menu.
+const hasLoginOptions = computed(() => {
+  const info = portal.value;
+  if (!info) return false;
+  return Boolean(
+    info.loginTypes.voucher ||
+      info.loginTypes.cpf ||
+      info.loginTypes.ixc ||
+      info.loginTypes.compra ||
+      info.hotspot.cadastroTela?.ativo,
+  );
 });
 const portalLogoUrl = computed(() => portal.value?.hotspot.portalLogoUrl || "/img/logo.png");
 const portalTitle = computed(() => portal.value?.hotspot.portalTitulo || "ACESSO CAS INTERNET");
@@ -849,9 +933,7 @@ async function submitContract(): Promise<void> {
     leadForm.whatsapp = "";
     leadForm.cpf = "";
     if (response.bonusAccess?.html) {
-      document.open();
-      document.write(response.bonusAccess.html);
-      document.close();
+      proceedAfterLogin(response.bonusAccess.html);
       return;
     }
 
@@ -1002,9 +1084,7 @@ async function confirmIxcTempAccess(): Promise<void> {
   try {
     ixcTempAccessConfirmed.value = true;
     saveIxcPaymentState();
-    document.open();
-    document.write(ixcTempAccessHtml.value);
-    document.close();
+    proceedAfterLogin(ixcTempAccessHtml.value);
   } finally {
     loading.value = false;
   }
@@ -1039,9 +1119,7 @@ async function confirmPurchaseTempAccess(): Promise<void> {
 
     purchaseTempAccessConfirmed.value = true;
     savePurchasePaymentState();
-    document.open();
-    document.write(text);
-    document.close();
+    proceedAfterLogin(text);
   } finally {
     loading.value = false;
   }
@@ -1067,9 +1145,7 @@ async function recheckIxcPayment(): Promise<void> {
       return;
     }
     clearIxcPaymentState();
-    document.open();
-    document.write(text);
-    document.close();
+    proceedAfterLogin(text);
   } finally {
     loading.value = false;
   }
@@ -1096,9 +1172,7 @@ async function finalizePurchaseLogin(): Promise<void> {
       return;
     }
     clearPurchasePaymentState();
-    document.open();
-    document.write(text);
-    document.close();
+    proceedAfterLogin(text);
   } finally {
     loading.value = false;
   }
@@ -1133,11 +1207,106 @@ async function submit(): Promise<void> {
       return;
     }
 
-    document.open();
-    document.write(text);
-    document.close();
+    proceedAfterLogin(text);
   } finally {
     loading.value = false;
+  }
+}
+
+const lgpd = computed(() => portal.value?.lgpd ?? null);
+const needsConsent = computed(() => Boolean(lgpd.value?.exigir) && !consentAceito.value);
+
+function consentStorageKey(): string {
+  return `consent-${slug.value}`;
+}
+
+function campanhaSeenKey(campanha: PortalCampanha): string {
+  return `campanha-seen-${slug.value}-${campanha.id}`;
+}
+
+// Escolhe a primeira campanha elegivel respeitando a frequencia (uma vez por
+// dispositivo/sessao) ja consumida em execucoes anteriores.
+function pickCampanha(list: PortalCampanha[]): PortalCampanha | null {
+  for (const campanha of list) {
+    try {
+      if (campanha.exibicao === "UMA_VEZ" && localStorage.getItem(campanhaSeenKey(campanha))) continue;
+      if (campanha.exibicao === "POR_SESSAO" && sessionStorage.getItem(campanhaSeenKey(campanha))) continue;
+    } catch {
+      // storage indisponivel: exibe mesmo assim.
+    }
+    return campanha;
+  }
+  return null;
+}
+
+function markCampanhaSeen(campanha: PortalCampanha): void {
+  try {
+    if (campanha.exibicao === "UMA_VEZ") localStorage.setItem(campanhaSeenKey(campanha), "1");
+    else if (campanha.exibicao === "POR_SESSAO") sessionStorage.setItem(campanhaSeenKey(campanha), "1");
+  } catch {
+    // ignora falha de storage.
+  }
+}
+
+function writeHtml(html: string): void {
+  document.open();
+  document.write(html);
+  document.close();
+}
+
+// Ponto unico de saida do portal apos um acesso liberado: se houver campanha
+// DEPOIS_LOGIN, exibe antes de redirecionar o cliente para o gateway.
+function proceedAfterLogin(html: string): void {
+  const campanha = pickCampanha(campanhasDepois.value);
+  if (campanha) {
+    pendingLoginHtml.value = html;
+    campanhaAtual.value = campanha;
+    return;
+  }
+  writeHtml(html);
+}
+
+function onCampanhaContinue(): void {
+  const campanha = campanhaAtual.value;
+  if (campanha) markCampanhaSeen(campanha);
+  campanhaAtual.value = null;
+
+  if (pendingLoginHtml.value) {
+    const html = pendingLoginHtml.value;
+    pendingLoginHtml.value = null;
+    writeHtml(html);
+  }
+}
+
+async function acceptConsent(): Promise<void> {
+  if (!consentChecked.value || !portal.value) return;
+  consentAceito.value = true;
+  try {
+    localStorage.setItem(consentStorageKey(), portal.value.lgpd.versao);
+  } catch {
+    // ignora falha de storage.
+  }
+  // Registro de auditoria e best-effort: nao bloqueia o acesso do cliente.
+  void api
+    .post("/portal/consentimento", {
+      hotspotSlug: slug.value,
+      versaoTermos: portal.value.lgpd.versao,
+      mac: queryValue("mac") ?? null,
+      ip: queryValue("ip") ?? null,
+    })
+    .catch(() => undefined);
+}
+
+async function loadCampanhas(): Promise<void> {
+  try {
+    const [antes, depois] = await Promise.all([
+      api.get<PortalCampanha[]>(`/portal/${encodeURIComponent(slug.value)}/campanhas?momento=ANTES_LOGIN`),
+      api.get<PortalCampanha[]>(`/portal/${encodeURIComponent(slug.value)}/campanhas?momento=DEPOIS_LOGIN`),
+    ]);
+    campanhasAntes.value = antes;
+    campanhasDepois.value = depois;
+  } catch {
+    // campanhas sao opcionais: falha nao impede o portal.
   }
 }
 
@@ -1150,6 +1319,17 @@ onMounted(async () => {
     portal.value = await api.get<PortalInfo>(`/portal/${encodeURIComponent(slug.value)}`);
     resetCustomMinutes();
     selectedPlanId.value = portal.value.hotspot.planos[0]?.id ?? (customPurchaseEnabled.value ? CUSTOM_PLAN_ID : "");
+
+    // Consentimento ja aceito neste dispositivo para a versao atual dos termos.
+    try {
+      if (localStorage.getItem(consentStorageKey()) === portal.value.lgpd.versao) {
+        consentAceito.value = true;
+      }
+    } catch {
+      // ignora falha de storage.
+    }
+
+    await loadCampanhas();
 
     if (queryValue("ixcPayment") === "1" && restoreIxcPaymentState()) {
       return;
@@ -1175,6 +1355,8 @@ onMounted(async () => {
     }
 
     activeTab.value = portal.value.loginTypes.voucher ? "voucher" : portal.value.loginTypes.cpf ? "cpf" : "ixc";
+    // Interstitial de campanha ANTES_LOGIN ao cair na home.
+    campanhaAtual.value = pickCampanha(campanhasAntes.value);
   } catch (requestError) {
     error.value = requestError instanceof ApiError ? requestError.message : "Hotspot nao encontrado.";
   }
@@ -1542,9 +1724,174 @@ input:focus {
 }
 
 .empty-state {
-  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 18px 6px 10px;
+}
+
+.empty-icon {
+  width: 66px;
+  height: 66px;
+  border-radius: 22px;
+  background: #eaf3ff;
+  color: #0077ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.empty-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.empty-text {
+  font-size: 13.5px;
   color: #6b7280;
+  line-height: 1.55;
+  max-width: 34ch;
+}
+
+.consent-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.consent-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  font-size: 13.5px;
+  color: #374151;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.consent-check input {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: #0077ff;
+}
+
+.consent-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
+}
+
+.consent-links button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #0077ff;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.footer-links {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.footer-links button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+  opacity: 0.9;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.campanha-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(3, 12, 24, 0.82);
+}
+
+.campanha-overlay-card {
+  width: 100%;
+  max-width: 380px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
+}
+
+.doc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(3, 12, 24, 0.7);
+}
+
+.doc-card {
+  width: 100%;
+  max-width: 560px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.doc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.doc-head h2 {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.doc-head button {
+  border: none;
+  background: none;
+  font-size: 24px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.doc-body {
+  padding: 18px;
+  overflow-y: auto;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #374151;
+  white-space: pre-wrap;
 }
 
 .footer {

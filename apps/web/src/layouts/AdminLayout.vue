@@ -26,6 +26,16 @@
             <p class="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Hotspot</p>
             <h1 class="text-lg font-semibold leading-tight">{{ route.meta.title ?? "Dashboard" }}</h1>
           </div>
+          <Button
+            class="ml-auto"
+            variant="ghost"
+            size="icon"
+            :aria-label="theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'"
+            @click="toggleTheme"
+          >
+            <Sun v-if="theme === 'dark'" class="h-5 w-5" />
+            <Moon v-else class="h-5 w-5" />
+          </Button>
         </div>
       </header>
 
@@ -42,11 +52,15 @@ import {
   Link2,
   LogOut,
   MapPinned,
+  Megaphone,
   Menu,
+  Moon,
+  Sun,
   ClipboardList,
   ReceiptText,
   RadioTower,
   Router,
+  Settings,
   ShieldCheck,
   Ticket,
   Users,
@@ -57,7 +71,9 @@ import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import { clearToken, getCurrentAdmin, type AdminRole } from "@/services/api";
+import { useTheme } from "@/services/theme";
 
+const { theme, toggleTheme } = useTheme();
 const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(false);
@@ -72,11 +88,13 @@ const navigation = [
   { label: "Integracoes", to: "/integracoes", icon: Link2, roles: ["admin", "manager"] },
   { label: "Hotspots", to: "/hotspots", icon: RadioTower, roles: ["admin", "manager"] },
   { label: "Telas de cadastro", to: "/cadastros-telas", icon: ClipboardList, roles: ["admin", "manager"] },
-  { label: "Bilheteria", to: "/bilheteria", icon: ReceiptText, roles: ["admin", "manager"] },
+  { label: "Campanhas", to: "/campanhas", icon: Megaphone, roles: ["admin", "manager"] },
+  { label: "Planos", to: "/planos", icon: ReceiptText, roles: ["admin", "manager"] },
   { label: "Prospeccoes", to: "/prospeccoes", icon: Users, roles: ["admin", "manager"] },
   { label: "Vouchers", to: "/vouchers", icon: Ticket, roles: ["admin", "user"] },
   { label: "Logins CPF", to: "/logins", icon: ShieldCheck, roles: ["admin", "user"] },
   { label: "Usuarios", to: "/usuarios", icon: Users, roles: ["admin"] },
+  { label: "Configuracoes", to: "/configuracoes", icon: Settings, roles: ["admin"] },
 ];
 
 const visibleNavigation = computed(() => navigation.filter((item) => item.roles.includes(currentRole.value)));

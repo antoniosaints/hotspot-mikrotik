@@ -7,6 +7,73 @@ import { buildFinalLoginHtml } from "../../services/router-login.service.js";
 import { AccessStatus, LoginType } from "../../types.js";
 import { addMinutes, sendCrudError, sendZodError } from "../../utils/http.js";
 import { normalizeCpf, normalizeVoucherCode } from "../../utils/normalization.js";
+import { getConfig } from "../settings/settings.routes.js";
+import { campanhaEstaAtiva } from "../campaigns/campaigns.routes.js";
+
+type HotspotLgpdOverride = {
+  lgpdModo: string;
+  termosUso: string | null;
+  politicaPrivacidade: string | null;
+  lgpdConsentimentoTexto: string | null;
+  exigirConsentimentoLgpd: boolean | null;
+};
+
+// Resolve os textos/exigencia efetivos de LGPD: hotspot em modo CUSTOM sobrescreve
+// o global; caso contrario herda a Configuracao global.
+function resolveLgpd(
+  hotspot: HotspotLgpdOverride,
+  config: Awaited<ReturnType<typeof getConfig>>,
+) {
+  const custom = hotspot.lgpdModo === "CUSTOM";
+  return {
+    exigir: hotspot.exigirConsentimentoLgpd ?? config.exigirConsentimento,
+    versao: config.lgpdVersao,
+    consentimentoTexto: (custom && hotspot.lgpdConsentimentoTexto) || config.lgpdConsentimentoTexto,
+    termosUso: (custom && hotspot.termosUso) || config.termosUso,
+    politicaPrivacidade: (custom && hotspot.politicaPrivacidade) || config.politicaPrivacidade,
+  };
+}
+
+// Payload publico de campanha (sem campos internos de admin/segmentacao).
+function toPortalCampanha(campanha: {
+  id: string;
+  tipo: string;
+  momento: string;
+  duracaoSegundos: number | null;
+  permitePular: boolean;
+  exibicao: string;
+  ctaTexto: string | null;
+  ctaUrl: string | null;
+  imagemUrl: string | null;
+  videoUrl: string | null;
+  htmlConteudo: string | null;
+  titulo: string | null;
+  subtitulo: string | null;
+  texto: string | null;
+  corFundo: string | null;
+  corTexto: string | null;
+  blocos: string | null;
+}) {
+  return {
+    id: campanha.id,
+    tipo: campanha.tipo,
+    momento: campanha.momento,
+    duracaoSegundos: campanha.duracaoSegundos,
+    permitePular: campanha.permitePular,
+    exibicao: campanha.exibicao,
+    ctaTexto: campanha.ctaTexto,
+    ctaUrl: campanha.ctaUrl,
+    imagemUrl: campanha.imagemUrl,
+    videoUrl: campanha.videoUrl,
+    htmlConteudo: campanha.htmlConteudo,
+    titulo: campanha.titulo,
+    subtitulo: campanha.subtitulo,
+    texto: campanha.texto,
+    corFundo: campanha.corFundo,
+    corTexto: campanha.corTexto,
+    blocos: campanha.blocos,
+  };
+}
 
 const slugParamsSchema = z.object({ slug: z.string().min(1) });
 const ixcInvoiceSchema = z.object({
@@ -155,6 +222,46 @@ function finalLoginHtml(body: ReturnType<typeof normalizePortalLoginBody>, usern
 }
 
 export async function portalRoutes(app: FastifyInstance) {
+  // Resolve MikroTik + servidor hotspot (interface de origem) para o slug do
+  // portal. Usado pelo login.html compartilhado, que envia $(server-name).
+  app.get("/portal/resolve/:mikrotikId", async (request, reply) => {
+    try {
+      const params = z.object({ mikrotikId: z.string().min(1) }).parse(request.params);
+      const query = z.object({ server: z.string().optional() }).parse(request.query);
+      const server = query.server?.trim();
+      // Variavel nao substituida pelo MikroTik (ex.: pagina aberta fora do
+      // hotspot) chega literal como "$(server-name)".
+      const validServer = server && !server.startsWith("$(") ? server : undefined;
+
+      const hotspot =
+        (validServer
+          ? await prisma.hotspot.findFirst({
+              where: { mikrotikId: params.mikrotikId, servidorHotspot: validServer, ativo: true },
+              select: { slug: true },
+            })
+          : null) ??
+        // Fallback: hotspot do MikroTik sem servidor definido, ou o mais antigo ativo.
+        (await prisma.hotspot.findFirst({
+          where: { mikrotikId: params.mikrotikId, servidorHotspot: null, ativo: true },
+          select: { slug: true },
+        })) ??
+        (await prisma.hotspot.findFirst({
+          where: { mikrotikId: params.mikrotikId, ativo: true },
+          orderBy: { criadoEm: "asc" },
+          select: { slug: true },
+        }));
+
+      if (!hotspot) {
+        return reply.status(404).send({ error: "Nenhum hotspot ativo para este MikroTik." });
+      }
+
+      return { slug: hotspot.slug };
+    } catch (error) {
+      if (error instanceof ZodError) return sendZodError(reply, error);
+      return sendCrudError(reply, error);
+    }
+  });
+
   app.get("/portal/:slug", async (request, reply) => {
     try {
       const params = slugParamsSchema.parse(request.params);
@@ -183,6 +290,11 @@ export async function portalRoutes(app: FastifyInstance) {
           tempoPersonalizadoPasso: true,
           conexoesPersonalizado: true,
           ativo: true,
+          lgpdModo: true,
+          termosUso: true,
+          politicaPrivacidade: true,
+          lgpdConsentimentoTexto: true,
+          exigirConsentimentoLgpd: true,
           local: { select: { id: true, nome: true } },
           integracao: { select: { id: true, nome: true, tipo: true, ativo: true } },
           pagamentoIntegracao: { select: { id: true, nome: true, tipo: true, ativo: true } },
@@ -210,8 +322,22 @@ export async function portalRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Hotspot nao encontrado." });
       }
 
+      const config = await getConfig();
+      const lgpd = resolveLgpd(hotspot, config);
+      // Remove os campos brutos de override do payload publico; o portal usa
+      // apenas o bloco `lgpd` ja resolvido.
+      const {
+        lgpdModo: _lgpdModo,
+        termosUso: _termosUso,
+        politicaPrivacidade: _politicaPrivacidade,
+        lgpdConsentimentoTexto: _lgpdConsentimentoTexto,
+        exigirConsentimentoLgpd: _exigirConsentimentoLgpd,
+        ...hotspotPublic
+      } = hotspot;
+
       return {
-        hotspot,
+        hotspot: hotspotPublic,
+        lgpd,
         loginTypes: {
           voucher: hotspot.loginVoucher,
           cpf: hotspot.loginCpf,
@@ -228,6 +354,70 @@ export async function portalRoutes(app: FastifyInstance) {
       }
 
       throw error;
+    }
+  });
+
+  app.get("/portal/:slug/campanhas", async (request, reply) => {
+    try {
+      const params = slugParamsSchema.parse(request.params);
+      const query = z
+        .object({ momento: z.enum(["ANTES_LOGIN", "DEPOIS_LOGIN"]).optional() })
+        .parse(request.query);
+
+      const hotspot = await prisma.hotspot.findUnique({
+        where: { slug: params.slug },
+        select: { id: true, ativo: true },
+      });
+      if (!hotspot || !hotspot.ativo) return [];
+
+      const campanhas = await prisma.campanha.findMany({
+        where: {
+          ativo: true,
+          ...(query.momento ? { momento: query.momento } : {}),
+          OR: [{ todosHotspots: true }, { hotspots: { some: { id: hotspot.id } } }],
+        },
+        orderBy: [{ prioridade: "desc" }, { criadoEm: "desc" }],
+      });
+
+      const agora = new Date();
+      return campanhas.filter((campanha) => campanhaEstaAtiva(campanha, agora)).map(toPortalCampanha);
+    } catch (error) {
+      if (error instanceof ZodError) return sendZodError(reply, error);
+      throw error;
+    }
+  });
+
+  app.post("/portal/consentimento", async (request, reply) => {
+    try {
+      const body = z
+        .object({
+          hotspotSlug: z.string().min(1),
+          versaoTermos: z.string().min(1),
+          mac: z.string().optional().nullable(),
+          ip: z.string().optional().nullable(),
+        })
+        .parse(request.body);
+
+      const hotspot = await prisma.hotspot.findUnique({
+        where: { slug: body.hotspotSlug },
+        select: { id: true },
+      });
+      if (!hotspot) return reply.status(404).send({ error: "Hotspot nao encontrado." });
+
+      await prisma.consentimentoLgpd.create({
+        data: {
+          hotspotId: hotspot.id,
+          versaoTermos: body.versaoTermos,
+          mac: body.mac ?? null,
+          ip: body.ip ?? request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        },
+      });
+
+      return { ok: true };
+    } catch (error) {
+      if (error instanceof ZodError) return sendZodError(reply, error);
+      return sendCrudError(reply, error);
     }
   });
 
@@ -300,6 +490,7 @@ export async function portalRoutes(app: FastifyInstance) {
           bonusMinutes,
           hotspot.mikrotik.profilePadrao,
           "Hotspot CONTRATACAO",
+          hotspot.servidorHotspot,
         );
       }
 
@@ -351,7 +542,7 @@ export async function portalRoutes(app: FastifyInstance) {
       const now = new Date();
 
       if (hotspot.mikrotik.ativo) {
-        await createHotspotUser(hotspot.mikrotik, tempCode, tempCode, 4, hotspot.mikrotik.profilePadrao, "Hotspot IXC_PAGAMENTO");
+        await createHotspotUser(hotspot.mikrotik, tempCode, tempCode, 4, hotspot.mikrotik.profilePadrao, "Hotspot IXC_PAGAMENTO", hotspot.servidorHotspot);
       }
 
       await prisma.acesso.create({
@@ -414,6 +605,7 @@ export async function portalRoutes(app: FastifyInstance) {
           hotspot.integracaoTempoMinutos,
           hotspot.mikrotik.profilePadrao,
           "Hotspot IXC",
+          hotspot.servidorHotspot,
         );
       }
 
@@ -601,6 +793,7 @@ export async function portalRoutes(app: FastifyInstance) {
             minutes,
             hotspot.mikrotik.profilePadrao,
             `Hotspot ${accessType}`,
+            hotspot.servidorHotspot,
           );
         }
       } catch (error) {

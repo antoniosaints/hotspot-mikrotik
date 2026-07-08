@@ -140,7 +140,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
             ativo: true,
             ...(query.hotspotId || query.localId ? { hotspots: { some: hotspotWhere } } : {}),
           },
-          include: { hotspots: { select: { id: true, nome: true, local: { select: { id: true, nome: true } } } } },
+          include: { hotspots: { select: { id: true, nome: true, servidorHotspot: true, local: { select: { id: true, nome: true } } } } },
         }),
       ]);
 
@@ -168,16 +168,27 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
       const activeClients = await Promise.all(
         activeMikrotiks.map(async (mikrotik) => {
+          // Com varios locais no mesmo MikroTik, o campo "server" do cliente
+          // ativo identifica de qual servidor hotspot (interface) ele veio.
+          const hotspotByServer = new Map(
+            mikrotik.hotspots
+              .filter((hotspot) => hotspot.servidorHotspot)
+              .map((hotspot) => [hotspot.servidorHotspot as string, hotspot]),
+          );
+
           try {
             const clients = await listActiveHotspotClients(mikrotik);
-            return clients.map((client) => ({
-              ...client,
-              mikrotikId: mikrotik.id,
-              mikrotikNome: mikrotik.nome,
-              hotspotNome: mikrotik.hotspots[0]?.nome ?? "-",
-              localNome: mikrotik.hotspots[0]?.local.nome ?? "-",
-              error: null as string | null,
-            }));
+            return clients.map((client) => {
+              const hotspot = hotspotByServer.get(client.server) ?? mikrotik.hotspots[0];
+              return {
+                ...client,
+                mikrotikId: mikrotik.id,
+                mikrotikNome: mikrotik.nome,
+                hotspotNome: hotspot?.nome ?? "-",
+                localNome: hotspot?.local.nome ?? "-",
+                error: null as string | null,
+              };
+            });
           } catch (error) {
             return [
               {

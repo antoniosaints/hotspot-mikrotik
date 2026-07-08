@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <link rel="icon" href="/img/logo.png" />
     <title>Hotspot CAS</title>
+    <script>
+      // Aplica o tema salvo antes do primeiro paint para evitar flash.
+      try {
+        if (localStorage.getItem("hotspot-theme") !== "light") {
+          document.documentElement.classList.add("dark");
+        }
+      } catch (error) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

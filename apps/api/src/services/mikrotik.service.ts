@@ -40,6 +40,14 @@ export type MikrotikActiveClient = {
   server: string;
 };
 
+export type MikrotikHotspotServer = {
+  id: string;
+  name: string;
+  interface: string;
+  profile: string;
+  disabled: string;
+};
+
 export type MikrotikHotspotUser = {
   id: string;
   name: string;
@@ -186,6 +194,7 @@ export async function createHotspotUser(
   minutes: number | null,
   profile: string,
   comment?: string,
+  server?: string | null,
 ): Promise<void> {
   await withClient(config, async (client) => {
     const users = client.menu?.("/ip/hotspot/user");
@@ -202,12 +211,21 @@ export async function createHotspotUser(
         // pela API, ex.: janela de pagamento da bilheteria).
         ...(minutes && minutes > 0 ? { "limit-uptime": `${minutes}m` } : {}),
         ...(comment ? { comment } : {}),
+        // server restringe o usuario ao servidor hotspot do local. Sem server,
+        // o RouterOS usa "all" (usuario vale em qualquer servidor do roteador).
+        ...(server ? { server } : {}),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message.includes("input does not match any value of profile")) {
         throw new Error(
           `o profile "${profile}" nao existe neste MikroTik. Verifique /ip hotspot user profile no roteador e ajuste o campo "Profile padrao" no cadastro do MikroTik.`,
+        );
+      }
+
+      if (server && message.includes("input does not match any value of server")) {
+        throw new Error(
+          `o servidor hotspot "${server}" nao existe neste MikroTik. Verifique /ip hotspot no roteador e ajuste o campo "Servidor hotspot" no cadastro do hotspot.`,
         );
       }
 
@@ -312,6 +330,24 @@ function valueAsString(record: Record<string, unknown>, ...keys: string[]) {
   }
 
   return "";
+}
+
+export async function listHotspotServers(config: MikrotikConnectionConfig): Promise<MikrotikHotspotServer[]> {
+  return withClient(config, async (client) => {
+    const servers = client.menu?.("/ip/hotspot");
+    if (!servers?.get) {
+      throw new Error("Cliente RouterOS nao expoe /ip/hotspot.get.");
+    }
+
+    const rows = await servers.get();
+    return rows.map((row) => ({
+      id: valueAsString(row, "id", ".id"),
+      name: valueAsString(row, "name"),
+      interface: valueAsString(row, "interface"),
+      profile: valueAsString(row, "profile"),
+      disabled: valueAsString(row, "disabled"),
+    }));
+  });
 }
 
 export async function listActiveHotspotClients(config: MikrotikConnectionConfig): Promise<MikrotikActiveClient[]> {
