@@ -604,7 +604,7 @@ export async function portalRoutes(app: FastifyInstance) {
           password,
           hotspot.integracaoTempoMinutos,
           hotspot.mikrotik.profilePadrao,
-          `Hotspot IXC - ${validation.nome}`,
+          `Cliente IXC ${validation.nome}`,
           hotspot.servidorHotspot,
         );
       }
@@ -649,6 +649,7 @@ export async function portalRoutes(app: FastifyInstance) {
       let cpfLoginId: string | null = null;
       let accessCode: string;
       let accessType: LoginType;
+      let commentCustom: string | null = null;
 
       if (body.loginType === "voucher") {
         if (!hotspot.loginVoucher) {
@@ -751,6 +752,7 @@ export async function portalRoutes(app: FastifyInstance) {
         minutes = hotspot.integracaoTempoMinutos;
         accessCode = username;
         accessType = LoginType.IXC;
+        commentCustom = ixcValidation.nome;
       }
 
       const html = buildFinalLoginHtml({
@@ -792,7 +794,7 @@ export async function portalRoutes(app: FastifyInstance) {
             password,
             minutes,
             hotspot.mikrotik.profilePadrao,
-            `Hotspot ${accessType}`,
+            `Hotspot ${accessType} ${commentCustom}`,
             hotspot.servidorHotspot,
           );
         }
