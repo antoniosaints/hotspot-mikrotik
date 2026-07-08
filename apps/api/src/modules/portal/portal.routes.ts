@@ -794,7 +794,7 @@ export async function portalRoutes(app: FastifyInstance) {
             password,
             minutes,
             hotspot.mikrotik.profilePadrao,
-            `Hotspot ${accessType} ${commentCustom}`,
+            `Hotspot ${accessType} ${commentCustom ? `(${commentCustom})` : ""}`,
             hotspot.servidorHotspot,
           );
         }
