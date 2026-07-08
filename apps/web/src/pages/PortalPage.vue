@@ -479,13 +479,6 @@ const routerParamKeys = [
 
 const query = computed(() => route.query);
 const routerError = computed(() => (typeof query.value.error === "string" && query.value.error ? query.value.error : ""));
-const tabs = computed(() => {
-  const enabled = [];
-  if (portal.value?.loginTypes.voucher) enabled.push({ label: "Voucher", value: "voucher" });
-  if (portal.value?.loginTypes.cpf) enabled.push({ label: "CPF", value: "cpf" });
-  if (portal.value?.loginTypes.ixc) enabled.push({ label: "Integracao", value: "ixc" });
-  return enabled;
-});
 
 // Verdadeiro quando ha ao menos uma forma de acesso publicada (login, compra ou
 // cadastro). Quando falso, o portal exibe o estado vazio em vez do menu.
