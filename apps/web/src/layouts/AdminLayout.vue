@@ -103,7 +103,7 @@ const currentTime = computed(() =>
 );
 
 const navigation = [
-  { label: "Dashboard", to: "/dashboard", icon: Gauge, roles: ["admin", "manager", "seller", "user"] },
+  { label: "Dashboard", to: "/dashboard", icon: Gauge, roles: ["admin", "manager", "marketing", "seller", "user"] },
   { label: "Usuarios", to: "/usuarios", icon: Users, roles: ["admin"] },
   { label: "Configuracoes", to: "/configuracoes", icon: Settings, roles: ["admin", "manager"] },
   { label: "Apps", to: "/integracoes", icon: Link2, roles: ["admin", "manager"] },

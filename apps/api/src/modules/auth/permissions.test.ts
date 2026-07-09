@@ -2,12 +2,8 @@ import { describe, expect, it } from "vitest";
 import { canAccessRoute, canDisconnectClients, canManageUsers, type AdminRole } from "./permissions.js";
 
 describe("admin permissions", () => {
-  it.each<AdminRole>(["admin", "manager", "seller", "user"])("allows dashboard for %s", (role) => {
+  it.each<AdminRole>(["admin", "manager", "marketing", "seller", "user"])("allows dashboard for %s", (role) => {
     expect(canAccessRoute(role, "dashboard")).toBe(true);
-  });
-
-  it("keeps marketing out of the dashboard", () => {
-    expect(canAccessRoute("marketing", "dashboard")).toBe(false);
   });
 
   it("keeps user management admin-only", () => {
@@ -21,6 +17,8 @@ describe("admin permissions", () => {
   it("allows managers to disconnect clients but blocks users", () => {
     expect(canDisconnectClients("admin")).toBe(true);
     expect(canDisconnectClients("manager")).toBe(true);
+    expect(canDisconnectClients("marketing")).toBe(false);
+    expect(canDisconnectClients("seller")).toBe(false);
     expect(canDisconnectClients("user")).toBe(false);
   });
 
@@ -42,6 +40,7 @@ describe("admin permissions", () => {
     expect(canAccessRoute("marketing", "cadastros-telas")).toBe(true);
     expect(canAccessRoute("marketing", "vouchers")).toBe(true);
     expect(canAccessRoute("marketing", "dispositivos")).toBe(true);
+    expect(canAccessRoute("marketing", "dashboard")).toBe(true);
     expect(canAccessRoute("marketing", "hotspots")).toBe(false);
     expect(canAccessRoute("marketing", "usuarios")).toBe(false);
   });

@@ -93,12 +93,12 @@
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">Server</th>
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">MikroTik</th>
             <th class="px-4 py-3 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">Tempo</th>
-            <th class="px-4 py-3 text-right text-xs uppercase tracking-[0.12em] text-muted-foreground">Acao</th>
+            <th v-if="canDisconnect" class="px-4 py-3 text-right text-xs uppercase tracking-[0.12em] text-muted-foreground">Acao</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-border">
           <tr v-if="(data?.activeClients ?? []).length === 0">
-            <td colspan="7" class="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum cliente ativo encontrado.</td>
+            <td :colspan="canDisconnect ? 7 : 6" class="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum cliente ativo encontrado.</td>
           </tr>
           <tr v-for="client in data?.activeClients ?? []" :key="`${client.mikrotikId}-${client.id}`">
             <td class="px-4 py-3 text-sm">
@@ -110,8 +110,8 @@
             <td class="px-4 py-3 text-sm">{{ client.server }}</td>
             <td class="px-4 py-3 text-sm">{{ client.mikrotikNome }}</td>
             <td class="px-4 py-3 text-sm">{{ client.uptime }}</td>
-            <td class="px-4 py-3 text-right">
-              <div v-if="!client.error && canDisconnect" class="flex flex-wrap justify-end gap-2">
+            <td v-if="canDisconnect" class="px-4 py-3 text-right">
+              <div v-if="!client.error" class="flex flex-wrap justify-end gap-2">
                 <Button
                   size="sm"
                   variant="destructive"

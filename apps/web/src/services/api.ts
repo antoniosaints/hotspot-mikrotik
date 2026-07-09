@@ -64,10 +64,8 @@ export function getCurrentRole(): AdminRole | null {
   return getCurrentAdmin()?.role ?? null;
 }
 
-// Rota inicial por papel: marketing nao acessa o dashboard, entao cai nas
-// campanhas; os demais vao para o dashboard.
 export function roleHome(role: AdminRole | null): string {
-  return role === "marketing" ? "/campanhas" : "/dashboard";
+  return role ? "/dashboard" : "/login";
 }
 
 export function clearToken(): void {

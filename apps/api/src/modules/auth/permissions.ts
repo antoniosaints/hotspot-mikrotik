@@ -27,8 +27,8 @@ export const RoleGroup = {
   READ_WIDE: ["admin", "manager", "marketing", "seller", "user"] as AdminRole[],
   // Dispositivos: quem pode editar/desconectar.
   DEVICES_WRITE: ["admin", "manager", "marketing"] as AdminRole[],
-  // Dashboard (marketing nao acessa).
-  DASHBOARD: ["admin", "manager", "seller", "user"] as AdminRole[],
+  // Dashboard: leitura operacional ampla.
+  DASHBOARD: ["admin", "manager", "marketing", "seller", "user"] as AdminRole[],
 } as const;
 
 export type AdminRouteKey =

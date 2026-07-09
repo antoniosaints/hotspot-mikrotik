@@ -55,7 +55,7 @@ const router = createRouter({
           path: "dashboard",
           name: "dashboard",
           component: DashboardPage,
-          meta: { title: "Dashboard", requiresAuth: true, roles: ["admin", "manager", "seller", "user"] },
+          meta: { title: "Dashboard", requiresAuth: true, roles: ["admin", "manager", "marketing", "seller", "user"] },
         },
         {
           path: "locais",
