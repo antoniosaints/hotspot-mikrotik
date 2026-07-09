@@ -26,16 +26,18 @@
             <p class="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Hotspot</p>
             <h1 class="text-lg font-semibold leading-tight">{{ route.meta.title ?? "Dashboard" }}</h1>
           </div>
-          <Button
-            class="ml-auto"
-            variant="ghost"
-            size="icon"
-            :aria-label="theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'"
-            @click="toggleTheme"
-          >
-            <Sun v-if="theme === 'dark'" class="h-5 w-5" />
-            <Moon v-else class="h-5 w-5" />
-          </Button>
+          <div class="ml-auto flex items-center gap-1">
+            <NotificationBell />
+            <Button
+              variant="ghost"
+              size="icon"
+              :aria-label="theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'"
+              @click="toggleTheme"
+            >
+              <Sun v-if="theme === 'dark'" class="h-5 w-5" />
+              <Moon v-else class="h-5 w-5" />
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -54,6 +56,7 @@ import {
   MapPinned,
   Megaphone,
   Menu,
+  MonitorSmartphone,
   Moon,
   Sun,
   ClipboardList,
@@ -70,6 +73,7 @@ import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
+import NotificationBell from "@/components/ui/NotificationBell.vue";
 import { clearToken, getCurrentAdmin, type AdminRole } from "@/services/api";
 import { useTheme } from "@/services/theme";
 
@@ -82,19 +86,20 @@ const currentAdmin = computed(() => getCurrentAdmin());
 const currentRole = computed<AdminRole>(() => currentAdmin.value?.role ?? "user");
 
 const navigation = [
-  { label: "Dashboard", to: "/dashboard", icon: Gauge, roles: ["admin", "manager", "user"] },
+  { label: "Dashboard", to: "/dashboard", icon: Gauge, roles: ["admin", "manager", "seller", "user"] },
   { label: "Locais", to: "/locais", icon: MapPinned, roles: ["admin", "manager"] },
-  { label: "MikroTiks", to: "/mikrotiks", icon: Router, roles: ["admin", "manager"] },
+  { label: "Equipamentos", to: "/mikrotiks", icon: Router, roles: ["admin", "manager"] },
   { label: "Integracoes", to: "/integracoes", icon: Link2, roles: ["admin", "manager"] },
   { label: "Hotspots", to: "/hotspots", icon: RadioTower, roles: ["admin", "manager"] },
-  { label: "Telas de cadastro", to: "/cadastros-telas", icon: ClipboardList, roles: ["admin", "manager"] },
-  { label: "Campanhas", to: "/campanhas", icon: Megaphone, roles: ["admin", "manager"] },
-  { label: "Planos", to: "/planos", icon: ReceiptText, roles: ["admin", "manager"] },
-  { label: "Prospeccoes", to: "/prospeccoes", icon: Users, roles: ["admin", "manager"] },
-  { label: "Vouchers", to: "/vouchers", icon: Ticket, roles: ["admin", "user"] },
-  { label: "Logins CPF", to: "/logins", icon: ShieldCheck, roles: ["admin", "user"] },
+  { label: "Telas de cadastro", to: "/cadastros-telas", icon: ClipboardList, roles: ["admin", "manager", "marketing"] },
+  { label: "Campanhas", to: "/campanhas", icon: Megaphone, roles: ["admin", "manager", "marketing"] },
+  { label: "Planos", to: "/planos", icon: ReceiptText, roles: ["admin", "manager", "marketing"] },
+  { label: "Prospeccoes", to: "/prospeccoes", icon: Users, roles: ["admin", "manager", "marketing", "seller", "user"] },
+  { label: "Dispositivos", to: "/dispositivos", icon: MonitorSmartphone, roles: ["admin", "manager", "marketing", "seller", "user"] },
+  { label: "Vouchers", to: "/vouchers", icon: Ticket, roles: ["admin", "manager", "marketing", "seller"] },
+  { label: "Logins CPF", to: "/logins", icon: ShieldCheck, roles: ["admin", "manager", "marketing", "seller"] },
   { label: "Usuarios", to: "/usuarios", icon: Users, roles: ["admin"] },
-  { label: "Configuracoes", to: "/configuracoes", icon: Settings, roles: ["admin"] },
+  { label: "Configuracoes", to: "/configuracoes", icon: Settings, roles: ["admin", "manager"] },
 ];
 
 const visibleNavigation = computed(() => navigation.filter((item) => item.roles.includes(currentRole.value)));

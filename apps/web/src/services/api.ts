@@ -22,7 +22,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 export const TOKEN_KEY = "hotspot_token";
 export const ADMIN_KEY = "hotspot_admin";
 
-export type AdminRole = "admin" | "manager" | "user";
+export type AdminRole = "admin" | "manager" | "marketing" | "seller" | "user";
 export type CurrentAdmin = {
   id: string;
   usuario: string;
@@ -62,6 +62,12 @@ export function getCurrentAdmin(): CurrentAdmin | null {
 
 export function getCurrentRole(): AdminRole | null {
   return getCurrentAdmin()?.role ?? null;
+}
+
+// Rota inicial por papel: marketing nao acessa o dashboard, entao cai nas
+// campanhas; os demais vao para o dashboard.
+export function roleHome(role: AdminRole | null): string {
+  return role === "marketing" ? "/campanhas" : "/dashboard";
 }
 
 export function clearToken(): void {

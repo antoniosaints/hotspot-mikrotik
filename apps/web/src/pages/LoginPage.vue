@@ -121,7 +121,7 @@ import Alert from "@/components/ui/Alert.vue";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
-import { api, ApiError, setCurrentAdmin, setToken, type CurrentAdmin } from "@/services/api";
+import { api, ApiError, roleHome, setCurrentAdmin, setToken, type CurrentAdmin } from "@/services/api";
 
 type LoginResponse = {
   token: string;
@@ -144,7 +144,7 @@ async function submit(): Promise<void> {
     });
     setToken(response.token);
     setCurrentAdmin(response.admin);
-    await router.push("/dashboard");
+    await router.push(roleHome(response.admin.role));
   } catch (requestError) {
     error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel fazer login.";
   } finally {

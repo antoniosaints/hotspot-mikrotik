@@ -35,6 +35,8 @@ const fields: CrudField[] = [
     options: [
       { label: "Admin", value: "admin" },
       { label: "Manager", value: "manager" },
+      { label: "Marketing", value: "marketing" },
+      { label: "Seller", value: "seller" },
       { label: "User", value: "user" },
     ],
   },

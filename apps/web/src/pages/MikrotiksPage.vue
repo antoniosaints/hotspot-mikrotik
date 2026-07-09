@@ -5,9 +5,9 @@
     </Alert>
 
     <CrudPage
-      title="MikroTiks"
+      title="Equipamentos"
       singular-title="MikroTik"
-      description="Roteadores usados para criar usuarios temporarios no Hotspot."
+      description="Equipamentos de rede do sistema. Hoje: roteadores MikroTik usados para criar usuarios temporarios no Hotspot."
       endpoint="/mikrotiks"
       :columns="columns"
       :fields="fields"

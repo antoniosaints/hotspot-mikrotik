@@ -40,6 +40,21 @@
       </Card>
     </div>
 
+    <div class="grid gap-5 grid-cols-1 xl:grid-cols-3">
+      <Card title="Faturamento" description="Vendas pagas no periodo">
+        <p class="text-3xl font-semibold text-emerald-500">{{ formatBRL(data?.totals.faturamentoTotalCentavos ?? 0) }}</p>
+        <p class="mt-1 text-sm text-muted-foreground">{{ data?.totals.vendasCount ?? 0 }} venda(s) confirmada(s)</p>
+        <p class="mt-4 text-xs text-muted-foreground">
+          Ticket medio: {{ formatBRL(averageTicketCentavos) }}
+        </p>
+      </Card>
+      <Card class="xl:col-span-2" title="Faturamento por dia" description="Receita diaria de vendas pagas">
+        <div class="h-64">
+          <canvas ref="revenueCanvas"></canvas>
+        </div>
+      </Card>
+    </div>
+
     <div class="grid gap-5 grid-cols-1 xl:grid-cols-6">
       <Card class="xl:col-span-4" title="Conexoes por periodo" description="Volume diario de logins liberados">
         <div class="h-72">
@@ -171,7 +186,18 @@ const dailyCanvas = ref<HTMLCanvasElement | null>(null);
 const typeCanvas = ref<HTMLCanvasElement | null>(null);
 const localCanvas = ref<HTMLCanvasElement | null>(null);
 const hotspotCanvas = ref<HTMLCanvasElement | null>(null);
+const revenueCanvas = ref<HTMLCanvasElement | null>(null);
 const charts: Chart[] = [];
+
+function formatBRL(centavos: number): string {
+  return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+const averageTicketCentavos = computed(() => {
+  const total = data.value?.totals.faturamentoTotalCentavos ?? 0;
+  const count = data.value?.totals.vendasCount ?? 0;
+  return count > 0 ? Math.round(total / count) : 0;
+});
 
 const kpis = computed(() => [
   { label: "Acessos", value: data.value?.totals.acessos ?? 0, help: "logins no periodo" },
@@ -260,6 +286,39 @@ function renderCharts(): void {
       datasets: [{ label: "Logins", data: data.value.accessByHotspot.map((item) => item.total), backgroundColor: colors.blue }],
     },
     options: baseOptions,
+  });
+
+  makeChart(revenueCanvas.value, {
+    type: "bar",
+    data: {
+      labels: data.value.faturamentoPorDia.map((day) => shortDate(day.date)),
+      datasets: [
+        {
+          label: "Faturamento",
+          data: data.value.faturamentoPorDia.map((day) => day.totalCentavos / 100),
+          backgroundColor: colors.green,
+        },
+      ],
+    },
+    options: {
+      ...baseOptions,
+      plugins: {
+        legend: { labels: { color: colors.text } },
+        tooltip: {
+          callbacks: {
+            label: (context) => formatBRL(Number(context.parsed.y) * 100),
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { color: colors.text }, grid: { color: colors.grid } },
+        y: {
+          ticks: { color: colors.text, callback: (value) => formatBRL(Number(value) * 100) },
+          grid: { color: colors.grid },
+          beginAtZero: true,
+        },
+      },
+    },
   });
 }
 

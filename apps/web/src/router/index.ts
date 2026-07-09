@@ -7,6 +7,7 @@ import CampanhasPage from "@/pages/CampanhasPage.vue";
 import ConfiguracoesPage from "@/pages/ConfiguracoesPage.vue";
 import CpfLoginsPage from "@/pages/CpfLoginsPage.vue";
 import DashboardPage from "@/pages/DashboardPage.vue";
+import DispositivosPage from "@/pages/DispositivosPage.vue";
 import HotspotsPage from "@/pages/HotspotsPage.vue";
 import IntegracoesPage from "@/pages/IntegracoesPage.vue";
 import LocaisPage from "@/pages/LocaisPage.vue";
@@ -17,14 +18,14 @@ import PortalResolvePage from "@/pages/PortalResolvePage.vue";
 import ProspeccoesPage from "@/pages/ProspeccoesPage.vue";
 import UsuariosPage from "@/pages/UsuariosPage.vue";
 import VouchersPage from "@/pages/VouchersPage.vue";
-import { getCurrentRole, isAuthenticated, type AdminRole } from "@/services/api";
+import { getCurrentRole, isAuthenticated, roleHome, type AdminRole } from "@/services/api";
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
       path: "/",
-      redirect: "/dashboard",
+      redirect: () => roleHome(getCurrentRole()),
     },
     {
       path: "/login",
@@ -54,7 +55,7 @@ const router = createRouter({
           path: "dashboard",
           name: "dashboard",
           component: DashboardPage,
-          meta: { title: "Dashboard", requiresAuth: true, roles: ["admin", "manager", "user"] },
+          meta: { title: "Dashboard", requiresAuth: true, roles: ["admin", "manager", "seller", "user"] },
         },
         {
           path: "locais",
@@ -66,7 +67,7 @@ const router = createRouter({
           path: "mikrotiks",
           name: "mikrotiks",
           component: MikrotiksPage,
-          meta: { title: "MikroTiks", requiresAuth: true, roles: ["admin", "manager"] },
+          meta: { title: "Equipamentos", requiresAuth: true, roles: ["admin", "manager"] },
         },
         {
           path: "integracoes",
@@ -84,25 +85,25 @@ const router = createRouter({
           path: "cadastros-telas",
           name: "cadastros-telas",
           component: CadastrosTelasPage,
-          meta: { title: "Telas de cadastro", requiresAuth: true, roles: ["admin", "manager"] },
+          meta: { title: "Telas de cadastro", requiresAuth: true, roles: ["admin", "manager", "marketing"] },
         },
         {
           path: "campanhas",
           name: "campanhas",
           component: CampanhasPage,
-          meta: { title: "Campanhas", requiresAuth: true, roles: ["admin", "manager"] },
+          meta: { title: "Campanhas", requiresAuth: true, roles: ["admin", "manager", "marketing"] },
         },
         {
           path: "configuracoes",
           name: "configuracoes",
           component: ConfiguracoesPage,
-          meta: { title: "Configuracoes", requiresAuth: true, roles: ["admin"] },
+          meta: { title: "Configuracoes", requiresAuth: true, roles: ["admin", "manager"] },
         },
         {
           path: "planos",
           name: "planos",
           component: PlanosPage,
-          meta: { title: "Planos", requiresAuth: true, roles: ["admin", "manager"] },
+          meta: { title: "Planos", requiresAuth: true, roles: ["admin", "manager", "marketing"] },
         },
         {
           // Compatibilidade com links antigos da Bilheteria.
@@ -113,19 +114,25 @@ const router = createRouter({
           path: "prospeccoes",
           name: "prospeccoes",
           component: ProspeccoesPage,
-          meta: { title: "Prospeccoes", requiresAuth: true, roles: ["admin", "manager"] },
+          meta: { title: "Prospeccoes", requiresAuth: true, roles: ["admin", "manager", "marketing", "seller", "user"] },
+        },
+        {
+          path: "dispositivos",
+          name: "dispositivos",
+          component: DispositivosPage,
+          meta: { title: "Dispositivos", requiresAuth: true, roles: ["admin", "manager", "marketing", "seller", "user"] },
         },
         {
           path: "vouchers",
           name: "vouchers",
           component: VouchersPage,
-          meta: { title: "Vouchers", requiresAuth: true, roles: ["admin", "user"] },
+          meta: { title: "Vouchers", requiresAuth: true, roles: ["admin", "manager", "marketing", "seller"] },
         },
         {
           path: "logins",
           name: "logins",
           component: CpfLoginsPage,
-          meta: { title: "Logins CPF", requiresAuth: true, roles: ["admin", "user"] },
+          meta: { title: "Logins CPF", requiresAuth: true, roles: ["admin", "manager", "marketing", "seller"] },
         },
         {
           path: "usuarios",
@@ -146,12 +153,12 @@ router.beforeEach((to) => {
   if (to.meta.requiresAuth && Array.isArray(to.meta.roles)) {
     const role = getCurrentRole();
     if (!role || !(to.meta.roles as AdminRole[]).includes(role)) {
-      return "/dashboard";
+      return roleHome(role);
     }
   }
 
   if (to.path === "/login" && isAuthenticated()) {
-    return "/dashboard";
+    return roleHome(getCurrentRole());
   }
 
   return true;

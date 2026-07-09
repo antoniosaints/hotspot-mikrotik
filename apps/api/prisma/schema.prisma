@@ -97,8 +97,39 @@ model Hotspot {
   leadsContratacao LeadContratacao[]
   consentimentos ConsentimentoLgpd[]
   campanhas   Campanha[]
+  dispositivos Dispositivo[]
 
   @@unique([mikrotikId, servidorHotspot])
+}
+
+// Dispositivo unico por MAC. Consolida os dados coletados em qualquer forma de
+// login (cadastro, CPF, IXC, compra) e o historico de conexoes fica no Acesso
+// (que ja guarda o mac). Cada nova conexao atualiza os campos disponiveis sem
+// apagar os ja preenchidos (ex.: login por voucher so atualiza mac/ultima
+// conexao, pois nao coleta dados pessoais).
+model Dispositivo {
+  id              String    @id @default(cuid())
+  mac             String    @unique
+  nome            String?
+  email           String?
+  cpf             String?
+  telefone        String?
+  whatsapp        String?
+  endereco        String?
+  cidade          String?
+  cep             String?
+  aceitouTermos   Boolean   @default(false)
+  aceitouTermosEm DateTime?
+  ultimoIp        String?
+  ultimoTipo      String?
+  ultimaConexao   DateTime?
+  totalConexoes   Int       @default(0)
+  ultimoHotspotId String?
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+  ultimoHotspot   Hotspot?  @relation(fields: [ultimoHotspotId], references: [id], onDelete: SetNull)
+
+  @@index([ultimaConexao])
 }
 
 model Configuracao {

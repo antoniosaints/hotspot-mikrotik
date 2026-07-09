@@ -9,6 +9,11 @@ import { addMinutes, sendCrudError, sendZodError } from "../../utils/http.js";
 import { normalizeCpf, normalizeVoucherCode } from "../../utils/normalization.js";
 import { getConfig } from "../settings/settings.routes.js";
 import { campanhaEstaAtiva } from "../campaigns/campaigns.routes.js";
+import {
+  registrarConexaoDispositivo,
+  registrarConsentimentoDispositivo,
+  type DispositivoDados,
+} from "../devices/devices.service.js";
 
 type HotspotLgpdOverride = {
   lgpdModo: string;
@@ -414,6 +419,8 @@ export async function portalRoutes(app: FastifyInstance) {
         },
       });
 
+      await registrarConsentimentoDispositivo({ mac: body.mac, ip: body.ip ?? request.ip });
+
       return { ok: true };
     } catch (error) {
       if (error instanceof ZodError) return sendZodError(reply, error);
@@ -471,6 +478,25 @@ export async function portalRoutes(app: FastifyInstance) {
           cpf: tela.coletarCpf && body.cpf ? normalizeCpf(body.cpf) : null,
           hotspotId: hotspot.id,
           cadastroTelaId: tela.id,
+        },
+      });
+
+      // Cadastro coleta o maior conjunto de dados: atualiza o dispositivo do MAC
+      // com tudo que a tela capturou, independentemente de haver bonus.
+      await registrarConexaoDispositivo({
+        mac: body.mac,
+        ip: body.ip,
+        tipo: LoginType.CONTRATACAO,
+        hotspotId: hotspot.id,
+        dados: {
+          nome: lead.nome,
+          email: lead.email,
+          endereco: lead.endereco,
+          cidade: lead.cidade,
+          cep: lead.cep,
+          telefone: lead.telefone,
+          whatsapp: lead.whatsapp,
+          cpf: lead.cpf,
         },
       });
 
@@ -559,6 +585,14 @@ export async function portalRoutes(app: FastifyInstance) {
         },
       });
 
+      await registrarConexaoDispositivo({
+        mac: body.mac,
+        ip: body.ip,
+        tipo: LoginType.IXC,
+        hotspotId: hotspot.id,
+        dados: { cpf: body.cpf ? normalizeCpf(body.cpf) : null },
+      });
+
       const routerBody = normalizePortalLoginBody({ ...body, loginType: "ixc" });
       return {
         pix,
@@ -623,6 +657,14 @@ export async function portalRoutes(app: FastifyInstance) {
         },
       });
 
+      await registrarConexaoDispositivo({
+        mac: body.mac,
+        ip: body.ip,
+        tipo: LoginType.IXC,
+        hotspotId: hotspot.id,
+        dados: { nome: validation.nome, cpf: username },
+      });
+
       return reply.type("text/html").send(finalLoginHtml(body, username, password));
     } catch (error) {
       if (error instanceof ZodError) return sendZodError(reply, error);
@@ -650,6 +692,9 @@ export async function portalRoutes(app: FastifyInstance) {
       let accessCode: string;
       let accessType: LoginType;
       let commentCustom: string | null = null;
+      // Dados pessoais coletados nesta conexao (para atualizar o dispositivo do
+      // MAC). Voucher nao coleta nada; CPF/IXC trazem o que tem.
+      let deviceData: DispositivoDados = {};
 
       if (body.loginType === "voucher") {
         if (!hotspot.loginVoucher) {
@@ -699,6 +744,7 @@ export async function portalRoutes(app: FastifyInstance) {
         cpfLoginId = cpfLogin.id;
         accessCode = cpfLogin.cpf;
         accessType = LoginType.CPF;
+        deviceData = { nome: cpfLogin.nome, cpf: cpfLogin.cpf, telefone: cpfLogin.telefone };
       } else {
         if (!hotspot.loginIntegracao) {
           return reply.status(400).send({ error: "Login por integracao desativado neste hotspot." });
@@ -753,6 +799,7 @@ export async function portalRoutes(app: FastifyInstance) {
         accessCode = username;
         accessType = LoginType.IXC;
         commentCustom = ixcValidation.nome;
+        deviceData = { nome: ixcValidation.nome, cpf: username };
       }
 
       const html = buildFinalLoginHtml({
@@ -836,6 +883,14 @@ export async function portalRoutes(app: FastifyInstance) {
             cpfLoginId,
           },
         });
+      });
+
+      await registrarConexaoDispositivo({
+        mac: body.mac,
+        ip: body.ip,
+        tipo: accessType,
+        hotspotId: hotspot.id,
+        dados: deviceData,
       });
 
       return reply.type("text/html").send(html);

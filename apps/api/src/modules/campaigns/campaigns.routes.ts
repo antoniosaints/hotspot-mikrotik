@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../db.js";
 import { sendCrudError } from "../../utils/http.js";
-import { AdminRole, requireAnyRole } from "../auth/permissions.js";
+import { RoleGroup, requireAnyRole } from "../auth/permissions.js";
 
 const idParamsSchema = z.object({ id: z.string().min(1) });
 
@@ -113,7 +113,7 @@ function parseHoraMinutos(value: string | null): number | null {
 }
 
 export async function campaignsRoutes(app: FastifyInstance) {
-  const managerPreHandler = [app.authenticate, requireAnyRole(AdminRole.ADMIN, AdminRole.MANAGER)];
+  const managerPreHandler = [app.authenticate, requireAnyRole(...RoleGroup.MARKETING_MANAGE)];
 
   app.get("/campanhas", { preHandler: managerPreHandler }, async () =>
     prisma.campanha.findMany({ include: includeHotspots, orderBy: [{ prioridade: "desc" }, { criadoEm: "desc" }] }),

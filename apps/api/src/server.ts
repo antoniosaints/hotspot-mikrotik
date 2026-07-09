@@ -11,6 +11,8 @@ import { billingRoutes } from "./modules/billing/billing.routes.js";
 import { startExpirationSweep } from "./modules/billing/expiration.service.js";
 import { crudRoutes } from "./modules/crud/crud.routes.js";
 import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
+import { devicesRoutes } from "./modules/devices/devices.routes.js";
+import { notificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { portalRoutes } from "./modules/portal/portal.routes.js";
 import { uploadsRoutes } from "./modules/uploads/uploads.routes.js";
 import { settingsRoutes } from "./modules/settings/settings.routes.js";
@@ -76,6 +78,8 @@ export function buildServer() {
       await api.register(authRoutes);
       await api.register(crudRoutes);
       await api.register(dashboardRoutes);
+      await api.register(devicesRoutes);
+      await api.register(notificationsRoutes);
       await api.register(billingRoutes);
       await api.register(portalRoutes);
       await api.register(uploadsRoutes);

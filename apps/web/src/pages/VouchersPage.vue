@@ -18,7 +18,7 @@
         variant="secondary"
         @click="markSold(String(item.id), reload)"
       >
-        Marcar vendido
+        Vender
       </Button>
     </template>
     <template #toolbar>

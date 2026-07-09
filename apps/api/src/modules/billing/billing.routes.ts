@@ -8,6 +8,7 @@ import { AccessStatus, LoginType } from "../../types.js";
 import { addMinutes, sendCrudError, sendZodError } from "../../utils/http.js";
 import { buildTicketCredentials, hasProspectData, normalizeBuyerFields, randomTicketCode } from "./billing.service.js";
 import { createPixPayment, getPayment, isApprovedPayment, verifyMercadoPagoSignature } from "./payment.service.js";
+import { registrarConexaoDispositivo } from "../devices/devices.service.js";
 
 // Janela para o cliente pagar o PIX ja conectado (controlada pela API).
 export const PAYMENT_WINDOW_MINUTES = 10;
@@ -177,6 +178,20 @@ async function releasePurchase(compraId: string) {
         status: AccessStatus.LIBERADO,
         hotspotId: compra.hotspotId,
         mikrotikId: compra.hotspot.mikrotikId,
+      },
+    });
+
+    await registrarConexaoDispositivo({
+      mac: compra.mac,
+      ip: compra.ip,
+      tipo: LoginType.COMPRA,
+      hotspotId: compra.hotspotId,
+      dados: {
+        nome: compra.nome,
+        telefone: compra.telefone,
+        email: compra.email,
+        cpf: compra.cpf,
+        endereco: compra.endereco,
       },
     });
 

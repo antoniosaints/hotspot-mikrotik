@@ -4,7 +4,7 @@ import { prisma } from "../../db.js";
 import { disconnectActiveHotspotClient, listActiveHotspotClients, removeHotspotUser } from "../../services/mikrotik.service.js";
 import { AccessStatus, LoginType } from "../../types.js";
 import { sendCrudError, sendZodError } from "../../utils/http.js";
-import { AdminRole, requireAnyRole } from "../auth/permissions.js";
+import { AdminRole, RoleGroup, requireAnyRole } from "../auth/permissions.js";
 
 const dashboardQuerySchema = z.object({
   from: z.string().optional(),
@@ -82,7 +82,7 @@ async function cleanupExpiredHotspotUsers() {
 }
 
 export async function dashboardRoutes(app: FastifyInstance) {
-  app.get("/dashboard", { preHandler: app.authenticate }, async (request, reply) => {
+  app.get("/dashboard", { preHandler: [app.authenticate, requireAnyRole(...RoleGroup.DASHBOARD)] }, async (request, reply) => {
     try {
       await cleanupExpiredHotspotUsers();
       const query = dashboardQuerySchema.parse(request.query);
@@ -113,6 +113,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         locais,
         hotspotsList,
         activeMikrotiks,
+        comprasPagas,
       ] = await Promise.all([
         prisma.voucher.count({ where: voucherWhere }),
         prisma.voucher.count({ where: { ...voucherWhere, usado: true } }),
@@ -142,6 +143,15 @@ export async function dashboardRoutes(app: FastifyInstance) {
           },
           include: { hotspots: { select: { id: true, nome: true, servidorHotspot: true, local: { select: { id: true, nome: true } } } } },
         }),
+        // Faturamento: compras pagas/liberadas no periodo (por data de pagamento).
+        prisma.compraAcesso.findMany({
+          where: {
+            status: { in: ["PAGO", "LIBERADO"] },
+            pagoEm: { gte: from, lte: to },
+            ...(query.hotspotId || query.localId ? { hotspot: hotspotWhere } : {}),
+          },
+          select: { valorCentavos: true, pagoEm: true },
+        }),
       ]);
 
       const days: string[] = [];
@@ -153,6 +163,15 @@ export async function dashboardRoutes(app: FastifyInstance) {
         date: day,
         total: accessRows.filter((row) => dateKey(row.loginEm) === day).length,
       }));
+
+      const faturamentoPorDia = days.map((day) => ({
+        date: day,
+        totalCentavos: comprasPagas
+          .filter((compra) => compra.pagoEm && dateKey(compra.pagoEm) === day)
+          .reduce((soma, compra) => soma + compra.valorCentavos, 0),
+      }));
+      const faturamentoTotalCentavos = comprasPagas.reduce((soma, compra) => soma + compra.valorCentavos, 0);
+      const vendasCount = comprasPagas.length;
 
       const accessByType = Object.values(LoginType).map((tipo) => ({
         tipo,
@@ -227,8 +246,11 @@ export async function dashboardRoutes(app: FastifyInstance) {
           mikrotiks,
           acessos,
           clientesAtivos: activeClients.flat().filter((client) => !client.error).length,
+          faturamentoTotalCentavos,
+          vendasCount,
         },
         accessByDay,
+        faturamentoPorDia,
         accessByType,
         accessByLocal: [...localMap.values()].sort((a, b) => b.total - a.total),
         accessByHotspot: [...hotspotMap.values()].sort((a, b) => b.total - a.total),

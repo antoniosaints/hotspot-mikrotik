@@ -13,7 +13,7 @@ import {
 import { listHotspotServers, listHotspotUsers, removeHotspotUserById, testConnection } from "../../services/mikrotik.service.js";
 import { normalizeCpf, normalizeVoucherCode } from "../../utils/normalization.js";
 import { sendCrudError } from "../../utils/http.js";
-import { AdminRole, requireAnyRole } from "../auth/permissions.js";
+import { AdminRole, RoleGroup, requireAnyRole } from "../auth/permissions.js";
 
 export { normalizeCpf, normalizeVoucherCode };
 
@@ -130,7 +130,7 @@ const generateVouchersSchema = z.object({
 const usuarioCreateSchema = z.object({
   usuario: z.string().min(1),
   senha: z.string().min(6),
-  role: z.enum(["admin", "manager", "user"]),
+  role: z.enum(["admin", "manager", "marketing", "seller", "user"]),
   nome: z.string().optional().nullable(),
   telefone: z.string().optional().nullable(),
   email: z.preprocess((value) => (value === "" ? null : value), z.string().email().optional().nullable()),
@@ -301,6 +301,8 @@ export async function crudRoutes(app: FastifyInstance) {
   }, { roles: [AdminRole.ADMIN, AdminRole.MANAGER] });
 
   const managerPreHandler = [app.authenticate, requireAnyRole(AdminRole.ADMIN, AdminRole.MANAGER)];
+  const marketingPreHandler = [app.authenticate, requireAnyRole(...RoleGroup.MARKETING_MANAGE)];
+  const salesPreHandler = [app.authenticate, requireAnyRole(...RoleGroup.SALES_MANAGE)];
   const adminPreHandler = [app.authenticate, requireAnyRole(AdminRole.ADMIN)];
 
   app.get("/integracoes", { preHandler: managerPreHandler }, async () => {
@@ -441,7 +443,7 @@ export async function crudRoutes(app: FastifyInstance) {
     orderBy: { criadoEm: "desc" },
   }, { roles: [AdminRole.ADMIN, AdminRole.MANAGER] });
 
-  app.get("/hotspots-options", { preHandler: [app.authenticate, requireAnyRole(AdminRole.ADMIN, AdminRole.MANAGER, AdminRole.USER)] }, async () =>
+  app.get("/hotspots-options", { preHandler: [app.authenticate, requireAnyRole(...RoleGroup.ALL)] }, async () =>
     prisma.hotspot.findMany({
       orderBy: { nome: "asc" },
       select: { id: true, nome: true, localId: true, mikrotikId: true, ativo: true },
@@ -473,10 +475,10 @@ export async function crudRoutes(app: FastifyInstance) {
       include: { hotspot: true },
       orderBy: { criadoEm: "desc" },
     },
-    { roles: [AdminRole.ADMIN, AdminRole.USER], skipDelete: true },
+    { roles: RoleGroup.SALES_MANAGE, skipDelete: true },
   );
 
-  app.delete("/vouchers/:id", { preHandler: [app.authenticate, requireAnyRole(AdminRole.ADMIN, AdminRole.USER)] }, async (request, reply) => {
+  app.delete("/vouchers/:id", { preHandler: salesPreHandler }, async (request, reply) => {
     try {
       const params = idParamsSchema.parse(request.params);
       const voucher = await prisma.voucher.findUnique({ where: { id: params.id }, select: { usado: true } });
@@ -489,7 +491,7 @@ export async function crudRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post("/vouchers/generate", { preHandler: [app.authenticate, requireAnyRole(AdminRole.ADMIN, AdminRole.USER)] }, async (request, reply) => {
+  app.post("/vouchers/generate", { preHandler: salesPreHandler }, async (request, reply) => {
     try {
       const body = generateVouchersSchema.parse(request.body);
       const created = await prisma.$transaction(async (tx) => {
@@ -532,7 +534,7 @@ export async function crudRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post("/vouchers/:id/sell", { preHandler: [app.authenticate, requireAnyRole(AdminRole.ADMIN, AdminRole.USER)] }, async (request, reply) => {
+  app.post("/vouchers/:id/sell", { preHandler: salesPreHandler }, async (request, reply) => {
     try {
       const params = idParamsSchema.parse(request.params);
       return await prisma.voucher.update({
@@ -546,21 +548,21 @@ export async function crudRoutes(app: FastifyInstance) {
 
   registerCrud(app, "/cadastros-telas", prisma.cadastroTela, cadastroTelaCreateSchema, cadastroTelaUpdateSchema, {
     orderBy: { criadoEm: "desc" },
-  }, { roles: [AdminRole.ADMIN, AdminRole.MANAGER] });
+  }, { roles: RoleGroup.MARKETING_MANAGE });
 
   registerCrud(app, "/cpf-logins", prisma.cpfLogin, cpfLoginCreateSchema, cpfLoginUpdateSchema, {
     include: { hotspot: true },
     orderBy: { criadoEm: "desc" },
-  }, { roles: [AdminRole.ADMIN, AdminRole.USER] });
+  }, { roles: RoleGroup.SALES_MANAGE });
 
   // Planos tem CRUD proprio porque o vinculo com hotspots e N:N (hotspotIds).
   const planoInclude = { hotspots: { select: { id: true, nome: true } } } as const;
 
-  app.get("/planos", { preHandler: managerPreHandler }, async () =>
+  app.get("/planos", { preHandler: marketingPreHandler }, async () =>
     prisma.plano.findMany({ include: planoInclude, orderBy: { criadoEm: "desc" } }),
   );
 
-  app.post("/planos", { preHandler: managerPreHandler }, async (request, reply) => {
+  app.post("/planos", { preHandler: marketingPreHandler }, async (request, reply) => {
     try {
       const { hotspotIds, ...data } = planoCreateSchema.parse(request.body);
       return await prisma.plano.create({
@@ -572,7 +574,7 @@ export async function crudRoutes(app: FastifyInstance) {
     }
   });
 
-  app.put("/planos/:id", { preHandler: managerPreHandler }, async (request, reply) => {
+  app.put("/planos/:id", { preHandler: marketingPreHandler }, async (request, reply) => {
     try {
       const params = idParamsSchema.parse(request.params);
       const { hotspotIds, ...data } = planoUpdateSchema.parse(request.body);
@@ -589,7 +591,7 @@ export async function crudRoutes(app: FastifyInstance) {
     }
   });
 
-  app.delete("/planos/:id", { preHandler: managerPreHandler }, async (request, reply) => {
+  app.delete("/planos/:id", { preHandler: marketingPreHandler }, async (request, reply) => {
     try {
       const params = idParamsSchema.parse(request.params);
       return await prisma.plano.delete({ where: { id: params.id } });
@@ -598,7 +600,7 @@ export async function crudRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get("/prospeccoes", { preHandler: managerPreHandler }, async (request) => {
+  app.get("/prospeccoes", { preHandler: [app.authenticate, requireAnyRole(...RoleGroup.READ_WIDE)] }, async (request) => {
     const query = z.object({
       hotspotId: z.string().optional(),
       planoId: z.string().optional(),

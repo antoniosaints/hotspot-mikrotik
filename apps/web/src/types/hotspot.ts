@@ -172,6 +172,52 @@ export type Acesso = EntityBase & {
   cpfLogin?: CpfLogin | null;
 };
 
+export type Dispositivo = EntityBase & {
+  mac: string;
+  nome: string | null;
+  email: string | null;
+  cpf: string | null;
+  telefone: string | null;
+  whatsapp: string | null;
+  endereco: string | null;
+  cidade: string | null;
+  cep: string | null;
+  aceitouTermos: boolean;
+  aceitouTermosEm: string | null;
+  ultimoIp: string | null;
+  ultimoTipo: string | null;
+  ultimaConexao: string | null;
+  totalConexoes: number;
+  ultimoHotspotId: string | null;
+  ultimoHotspot?: Pick<Hotspot, "id" | "nome"> | null;
+};
+
+export type DispositivoSessaoAtiva = {
+  mikrotikId: string;
+  mikrotikNome: string;
+  activeId: string;
+  username: string;
+  ip: string;
+  uptime: string;
+  server: string;
+  hotspotNome: string;
+};
+
+export type DispositivoConexao = Pick<
+  Acesso,
+  "id" | "tipo" | "codigo" | "mac" | "ip" | "loginEm" | "expiraEm" | "status"
+> & {
+  hotspot?: Pick<Hotspot, "nome"> | null;
+  mikrotik?: Pick<Mikrotik, "nome"> | null;
+};
+
+export type DispositivoDetalhes = {
+  dispositivo: Dispositivo;
+  conexoes: DispositivoConexao[];
+  sessoesAtivas: DispositivoSessaoAtiva[];
+  sessoesErro: string | null;
+};
+
 export type DashboardData = {
   filters: {
     from: string;
@@ -189,8 +235,11 @@ export type DashboardData = {
     mikrotiks: number;
     acessos: number;
     clientesAtivos: number;
+    faturamentoTotalCentavos: number;
+    vendasCount: number;
   };
   accessByDay: Array<{ date: string; total: number }>;
+  faturamentoPorDia: Array<{ date: string; totalCentavos: number }>;
   accessByType: Array<{ tipo: LoginType; total: number }>;
   accessByLocal: Array<{ id: string; nome: string; total: number }>;
   accessByHotspot: Array<{ id: string; nome: string; total: number }>;
@@ -209,6 +258,17 @@ export type DashboardData = {
     localNome: string;
     error: string | null;
   }>;
+};
+
+export type NotificacaoTipo = "conexao" | "cadastro" | "compra";
+
+export type Notificacao = {
+  id: string;
+  tipo: NotificacaoTipo;
+  titulo: string;
+  descricao: string;
+  data: string;
+  hotspotNome: string | null;
 };
 
 export type Configuracao = EntityBase & {
