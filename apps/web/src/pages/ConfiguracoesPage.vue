@@ -23,7 +23,6 @@
     </div>
 
     <Alert v-if="error" variant="destructive">{{ error }}</Alert>
-    <Alert v-if="savedMessage" variant="default">{{ savedMessage }}</Alert>
 
     <!-- Termos & LGPD -->
     <Card v-if="activeTab === 'lgpd'">
@@ -210,6 +209,7 @@ import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Table from "@/components/ui/Table.vue";
 import { api, ApiError, getCurrentRole } from "@/services/api";
+import { toast } from "@/services/toast";
 import type { Configuracao, ConsentimentoLgpd } from "@/types/hotspot";
 
 const textareaClass =
@@ -227,7 +227,6 @@ const activeTab = ref<string>("lgpd");
 const loading = ref(true);
 const saving = ref(false);
 const error = ref("");
-const savedMessage = ref("");
 
 const form = reactive({
   termosUso: "",
@@ -295,7 +294,6 @@ function openReset(tipo: ResetTipo): void {
   resetTipo.value = tipo;
   resetConfirmText.value = "";
   error.value = "";
-  savedMessage.value = "";
   if (tipo === "base") {
     for (const opt of keepOptions) resetKeep[opt.key] = true;
   }
@@ -306,16 +304,15 @@ async function confirmReset(): Promise<void> {
   if (!canConfirmReset.value) return;
   resetBusy.value = true;
   error.value = "";
-  savedMessage.value = "";
   try {
     const body =
       resetTipo.value === "base" ? { tipo: "base", manter: { ...resetKeep } } : { tipo: resetTipo.value };
     const result = await api.post<{ contagens: Record<string, number> }>("/manutencao/reset", body);
     const total = Object.values(result.contagens ?? {}).reduce((sum, value) => sum + value, 0);
-    savedMessage.value = `${resetTitle.value}: ${total} registro(s) removido(s).`;
+    toast.success(resetTitle.value, `${total} registro(s) removido(s).`);
     resetOpen.value = false;
   } catch (requestError) {
-    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel concluir o reset.";
+    toast.error("Nao foi possivel concluir o reset", requestError instanceof ApiError ? requestError.message : "Nao foi possivel concluir o reset.");
   } finally {
     resetBusy.value = false;
   }
@@ -350,7 +347,6 @@ async function loadConfig(): Promise<void> {
 async function save(): Promise<void> {
   saving.value = true;
   error.value = "";
-  savedMessage.value = "";
   try {
     await api.put("/config", {
       termosUso: form.termosUso,
@@ -363,9 +359,9 @@ async function save(): Promise<void> {
       empresaNome: form.empresaNome || null,
       empresaDocumento: form.empresaDocumento || null,
     });
-    savedMessage.value = "Configuracoes salvas com sucesso.";
+    toast.success("Configuracoes salvas", "As configuracoes foram atualizadas com sucesso.");
   } catch (requestError) {
-    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar.";
+    toast.error("Nao foi possivel salvar", requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar.");
   } finally {
     saving.value = false;
   }
@@ -385,7 +381,6 @@ async function loadConsentimentos(): Promise<void> {
 }
 
 watch(activeTab, (tab) => {
-  savedMessage.value = "";
   if (tab === "consentimentos" && !consentimentosLoaded) void loadConsentimentos();
 });
 

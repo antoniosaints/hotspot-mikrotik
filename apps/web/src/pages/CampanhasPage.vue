@@ -316,6 +316,7 @@ import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import Table from "@/components/ui/Table.vue";
 import { api, ApiError } from "@/services/api";
+import { toast } from "@/services/toast";
 import type {
   Campanha,
   CampanhaBloco,
@@ -553,7 +554,6 @@ function buildPayload(): Record<string, unknown> {
 
 async function save(): Promise<void> {
   saving.value = true;
-  error.value = "";
   try {
     if (editingId.value) {
       await api.put(`/campanhas/${editingId.value}`, buildPayload());
@@ -561,9 +561,10 @@ async function save(): Promise<void> {
       await api.post("/campanhas", buildPayload());
     }
     modalOpen.value = false;
+    toast.success("Campanha salva", "A campanha foi salva com sucesso.");
     await load();
   } catch (requestError) {
-    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar a campanha.";
+    toast.error("Nao foi possivel salvar a campanha", requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar a campanha.");
   } finally {
     saving.value = false;
   }
@@ -574,9 +575,10 @@ async function remove(campanha: Campanha): Promise<void> {
   error.value = "";
   try {
     await api.delete(`/campanhas/${campanha.id}`);
+    toast.success("Campanha apagada", `${campanha.nome} foi removida.`);
     await load();
   } catch (requestError) {
-    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel apagar a campanha.";
+    toast.error("Nao foi possivel apagar a campanha", requestError instanceof ApiError ? requestError.message : "Nao foi possivel apagar a campanha.");
   }
 }
 

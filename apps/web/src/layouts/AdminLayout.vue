@@ -46,6 +46,7 @@
       </main>
     </div>
     <AutoHelpMenu />
+    <ToastViewport />
   </div>
 </template>
 
@@ -76,6 +77,7 @@ import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import AutoHelpMenu from "@/components/AutoHelpMenu.vue";
 import NotificationBell from "@/components/ui/NotificationBell.vue";
+import ToastViewport from "@/components/ui/ToastViewport.vue";
 import { clearToken, getCurrentAdmin, type AdminRole } from "@/services/api";
 import { useTheme } from "@/services/theme";
 

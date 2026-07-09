@@ -220,6 +220,7 @@ import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Table from "@/components/ui/Table.vue";
 import { api, ApiError } from "@/services/api";
+import { toast } from "@/services/toast";
 import type { Integracao } from "@/types/hotspot";
 
 type AppTipo = Integracao["tipo"];
@@ -394,9 +395,10 @@ async function saveIntegracao(): Promise<void> {
     }
 
     resetForm(selectedTipo.value);
+    toast.success("App salvo", "A configuracao do app foi salva com sucesso.");
     await loadIntegracoes();
   } catch (requestError) {
-    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar o app.";
+    toast.error("Nao foi possivel salvar o app", requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar o app.");
   } finally {
     saving.value = false;
   }
@@ -407,9 +409,10 @@ async function removeIntegracao(item: Integracao): Promise<void> {
   error.value = "";
   try {
     await api.delete(`/integracoes/${item.id}`);
+    toast.success("App apagado", `${item.nome} foi removido.`);
     await loadIntegracoes();
   } catch (requestError) {
-    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel apagar o app.";
+    toast.error("Nao foi possivel apagar o app", requestError instanceof ApiError ? requestError.message : "Nao foi possivel apagar o app.");
   }
 }
 

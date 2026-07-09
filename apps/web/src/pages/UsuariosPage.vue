@@ -6,11 +6,13 @@
     endpoint="/usuarios"
     :columns="columns"
     :fields="fields"
+    :deletable-when="canDeleteUser"
   />
 </template>
 
 <script setup lang="ts">
-import CrudPage, { type CrudColumn, type CrudField } from "@/pages/CrudPage.vue";
+import CrudPage, { type CrudColumn, type CrudField, type CrudRecord } from "@/pages/CrudPage.vue";
+import { getCurrentAdmin } from "@/services/api";
 
 const columns: CrudColumn[] = [
   { key: "usuario", label: "Usuario" },
@@ -32,6 +34,8 @@ const fields: CrudField[] = [
     label: "Perfil",
     type: "select",
     defaultValue: "user",
+    disabledWhen: (form) => form.__id === getCurrentAdmin()?.id,
+    help: "Voce nao pode alterar a propria permissao.",
     options: [
       { label: "Admin", value: "admin" },
       { label: "Manager", value: "manager" },
@@ -40,6 +44,17 @@ const fields: CrudField[] = [
       { label: "User", value: "user" },
     ],
   },
-  { key: "ativo", label: "Ativo", type: "checkbox", defaultValue: true },
+  {
+    key: "ativo",
+    label: "Ativo",
+    type: "checkbox",
+    defaultValue: true,
+    disabledWhen: (form) => form.__id === getCurrentAdmin()?.id,
+    help: "Voce nao pode desativar o proprio usuario.",
+  },
 ];
+
+function canDeleteUser(item: CrudRecord): boolean {
+  return item.id !== getCurrentAdmin()?.id;
+}
 </script>

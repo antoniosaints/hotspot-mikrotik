@@ -98,7 +98,6 @@
 
   <!-- Editar dados do dispositivo -->
   <Dialog v-model:open="editOpen" title="Editar dispositivo" :description="editing?.mac">
-    <Alert v-if="formError" class="mb-4" variant="destructive">{{ formError }}</Alert>
     <form id="device-form" class="grid gap-4 sm:grid-cols-2" @submit.prevent="saveEdit">
       <div>
         <Label for="nome">Nome</Label>
@@ -245,6 +244,7 @@ import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Table from "@/components/ui/Table.vue";
 import { api, ApiError, getCurrentRole } from "@/services/api";
+import { toast } from "@/services/toast";
 import type { Dispositivo, DispositivoDetalhes, DispositivoSessaoAtiva } from "@/types/hotspot";
 
 // Editar dados e desconectar sessoes: apenas quem gerencia dispositivos.
@@ -263,7 +263,6 @@ const pageSize = ref(10);
 const editOpen = ref(false);
 const editing = ref<Dispositivo | null>(null);
 const saving = ref(false);
-const formError = ref("");
 const form = reactive({
   nome: "",
   email: "",
@@ -375,7 +374,6 @@ async function loadOnline(): Promise<void> {
 
 function openEdit(item: Dispositivo): void {
   editing.value = item;
-  formError.value = "";
   form.nome = item.nome ?? "";
   form.email = item.email ?? "";
   form.cpf = item.cpf ?? "";
@@ -390,7 +388,6 @@ function openEdit(item: Dispositivo): void {
 
 async function saveEdit(): Promise<void> {
   if (!editing.value) return;
-  formError.value = "";
   saving.value = true;
   try {
     const updated = await api.put<Dispositivo>(`/dispositivos/${editing.value.id}`, {
@@ -407,8 +404,9 @@ async function saveEdit(): Promise<void> {
     const index = items.value.findIndex((item) => item.id === updated.id);
     if (index !== -1) items.value[index] = updated;
     editOpen.value = false;
+    toast.success("Dispositivo salvo", "Os dados do dispositivo foram atualizados.");
   } catch (requestError) {
-    formError.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar o dispositivo.";
+    toast.error("Nao foi possivel salvar o dispositivo", requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar o dispositivo.");
   } finally {
     saving.value = false;
   }

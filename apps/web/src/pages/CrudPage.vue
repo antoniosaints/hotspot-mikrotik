@@ -125,6 +125,7 @@
                 type="button"
                 class="rounded-lg border bg-background/60 p-4 text-left transition-colors hover:border-primary/70"
                 :class="selectValue(field.key) === option.value ? 'border-primary ring-2 ring-primary/20' : 'border-border'"
+                :disabled="fieldDisabled(field)"
                 @click="form[field.key] = option.value"
               >
                 <span class="block text-sm font-semibold text-foreground">{{ option.label }}</span>
@@ -145,6 +146,7 @@
                   class="mt-1 h-4 w-4 flex-none accent-blue-500"
                   type="checkbox"
                   :checked="multiselectValues(field.key).includes(option.value)"
+                  :disabled="fieldDisabled(field)"
                   @change="toggleMultiselect(field.key, option.value)"
                 />
                 <span>
@@ -159,6 +161,7 @@
               :model-value="selectValue(field.key)"
               class="mt-2"
               :placeholder="field.placeholder ?? 'Selecione'"
+              :disabled="fieldDisabled(field)"
               @update:model-value="form[field.key] = $event"
             >
               <option v-for="option in fieldOptions(field)" :key="option.value" :value="option.value">
@@ -166,7 +169,7 @@
               </option>
             </Select>
             <label v-else-if="field.type === 'checkbox-card'" class="mt-2 flex cursor-pointer gap-3 rounded-lg border border-border bg-background/50 p-4 transition-colors hover:border-primary/60">
-              <input v-model="form[field.key]" class="mt-1 h-4 w-4 flex-none accent-blue-500" type="checkbox" />
+              <input v-model="form[field.key]" class="mt-1 h-4 w-4 flex-none accent-blue-500" type="checkbox" :disabled="fieldDisabled(field)" />
               <span>
                 <span class="block text-sm font-semibold text-foreground">{{ field.label }}</span>
                 <span v-if="field.help" class="mt-1 block text-xs leading-5 text-muted-foreground">{{ field.help }}</span>
@@ -175,6 +178,7 @@
             <ImagePicker
               v-else-if="field.type === 'image'"
               :model-value="selectValue(field.key)"
+              :disabled="fieldDisabled(field)"
               @update:model-value="form[field.key] = $event"
             />
             <div v-else-if="field.type === 'color'" class="mt-2 flex items-center gap-2">
@@ -183,6 +187,7 @@
                 class="h-9 w-12 flex-none cursor-pointer rounded-md border border-input bg-background p-1"
                 :aria-label="`Selecionar ${field.label}`"
                 :value="colorSwatchValue(field.key)"
+                :disabled="fieldDisabled(field)"
                 @input="form[field.key] = ($event.target as HTMLInputElement).value"
               />
               <Input
@@ -190,11 +195,12 @@
                 class="flex-1"
                 :model-value="inputValue(field.key)"
                 :placeholder="field.placeholder"
+                :disabled="fieldDisabled(field)"
                 @update:model-value="form[field.key] = $event"
               />
             </div>
             <label v-else-if="field.type === 'checkbox'" class="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <input v-model="form[field.key]" class="h-4 w-4 accent-blue-500" type="checkbox" />
+              <input v-model="form[field.key]" class="h-4 w-4 accent-blue-500" type="checkbox" :disabled="fieldDisabled(field)" />
               {{ field.help ?? "Habilitado" }}
             </label>
             <Input
@@ -206,6 +212,7 @@
               :type="field.type === 'number' ? 'number' : field.type === 'password' ? 'password' : 'text'"
               :min="field.type === 'number' ? 1 : undefined"
               :placeholder="field.placeholder"
+              :disabled="fieldDisabled(field)"
             />
             <p v-if="field.help && field.type !== 'checkbox' && field.type !== 'checkbox-card'" class="mt-1 text-xs text-muted-foreground">{{ field.help }}</p>
           </template>
@@ -235,6 +242,7 @@ import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import Table from "@/components/ui/Table.vue";
 import { api, ApiError } from "@/services/api";
+import { toast } from "@/services/toast";
 
 export type CrudRecord = { id: string; [key: string]: unknown };
 export type CrudFormValue = string | number | boolean | null | string[];
@@ -268,6 +276,7 @@ export type CrudField = {
   // vem sempre desta funcao, ignorando o que estiver salvo no registro.
   derivedValue?: (form: Record<string, CrudFormValue>) => CrudFormValue;
   visibleWhen?: (form: Record<string, CrudFormValue>) => boolean;
+  disabledWhen?: (form: Record<string, CrudFormValue>) => boolean;
   clearWhenHidden?: boolean;
 };
 
@@ -352,6 +361,10 @@ function fieldOptions(field: CrudField): Array<{ label: string; value: string; d
   return field.dynamicOptions ? field.dynamicOptions(form) : field.options ?? [];
 }
 
+function fieldDisabled(field: CrudField): boolean {
+  return Boolean(field.disabledWhen?.(form));
+}
+
 function multiselectValues(key: string): string[] {
   const value = form[key];
   return Array.isArray(value) ? value : [];
@@ -408,6 +421,7 @@ function baselineValue(field: CrudField, item?: CrudRecord): CrudFormValue {
 }
 
 function resetForm(item?: CrudRecord): void {
+  form.__id = item?.id ?? "";
   for (const field of props.fields) {
     // Campos de secao nao tem estado; derivados sao calculados sob demanda.
     if (field.type === "section" || field.derivedValue) continue;
@@ -489,7 +503,6 @@ function openEdit(item: CrudRecord): void {
 
 async function submitForm(): Promise<void> {
   saving.value = true;
-  error.value = "";
   try {
     if (editingItem.value) {
       await api.put(`${props.endpoint}/${editingItem.value.id}`, normalizePayload());
@@ -497,9 +510,10 @@ async function submitForm(): Promise<void> {
       await api.post(props.endpoint, normalizePayload());
     }
     modalOpen.value = false;
+    toast.success("Registro salvo", `${props.singularTitle.charAt(0).toUpperCase()}${props.singularTitle.slice(1)} salvo com sucesso.`);
     await loadItems();
   } catch (requestError) {
-    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar o registro.";
+    toast.error("Nao foi possivel salvar", requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar o registro.");
   } finally {
     saving.value = false;
   }
@@ -513,9 +527,10 @@ async function removeItem(item: CrudRecord): Promise<void> {
   error.value = "";
   try {
     await api.delete(`${props.endpoint}/${item.id}`);
+    toast.success("Registro apagado", `${name} foi removido.`);
     await loadItems();
   } catch (requestError) {
-    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel apagar o registro.";
+    toast.error("Nao foi possivel apagar", requestError instanceof ApiError ? requestError.message : "Nao foi possivel apagar o registro.");
   }
 }
 

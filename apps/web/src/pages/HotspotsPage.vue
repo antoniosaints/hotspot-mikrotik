@@ -43,6 +43,7 @@ import CrudPage, {
   type CrudRecord,
 } from "@/pages/CrudPage.vue";
 import { api, ApiError } from "@/services/api";
+import { toast } from "@/services/toast";
 import type { CadastroTela, Integracao, Local, Mikrotik, MikrotikHotspotServer } from "@/types/hotspot";
 
 const locais = ref<Local[]>([]);
@@ -165,12 +166,15 @@ async function cloneHotspot(item: CrudRecord, reload: () => Promise<void> | void
     await reload();
 
     if (typeof item.servidorHotspot === "string" && item.servidorHotspot.trim()) {
-      window.alert(
-        `Hotspot clonado como "${payload.nome}". O servidor hotspot ficou em branco porque cada servidor so pode pertencer a um hotspot no mesmo MikroTik. Edite o clone para escolher um servidor livre.`,
+      toast.info(
+        "Hotspot clonado",
+        `${payload.nome} foi criado sem servidor hotspot porque cada servidor so pode pertencer a um hotspot no mesmo MikroTik.`,
       );
+    } else {
+      toast.success("Hotspot clonado", `${payload.nome} foi criado com sucesso.`);
     }
   } catch (error) {
-    window.alert(error instanceof ApiError ? error.message : "Nao foi possivel clonar o hotspot.");
+    toast.error("Nao foi possivel clonar o hotspot", error instanceof ApiError ? error.message : "Nao foi possivel clonar o hotspot.");
   } finally {
     cloningId.value = null;
   }

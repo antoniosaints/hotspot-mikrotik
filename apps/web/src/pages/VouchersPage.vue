@@ -30,7 +30,6 @@
   </CrudPage>
 
   <Dialog v-model:open="batchOpen" title="Gerar lote de vouchers" description="Crie codigos aleatorios para um hotspot.">
-    <Alert v-if="error" class="mb-4" variant="destructive">{{ error }}</Alert>
     <form id="batch-form" class="space-y-4" @submit.prevent="generateBatch">
       <div>
         <Label for="hotspotId">Hotspot</Label>
@@ -75,7 +74,6 @@
 import { Plus } from "lucide-vue-next";
 import { computed, onMounted, reactive, ref } from "vue";
 
-import Alert from "@/components/ui/Alert.vue";
 import Button from "@/components/ui/Button.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import Input from "@/components/ui/Input.vue";
@@ -83,6 +81,7 @@ import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import CrudPage, { type CrudColumn, type CrudField, type CrudRecord } from "@/pages/CrudPage.vue";
 import { api, ApiError } from "@/services/api";
+import { toast } from "@/services/toast";
 import type { Hotspot } from "@/types/hotspot";
 
 type HotspotOption = Pick<Hotspot, "id" | "nome" | "localId" | "mikrotikId" | "ativo">;
@@ -92,7 +91,6 @@ const hotspotsLoading = ref(true);
 const crud = ref<InstanceType<typeof CrudPage> | null>(null);
 const batchOpen = ref(false);
 const saving = ref(false);
-const error = ref("");
 const batch = reactive({
   hotspotId: "",
   prefixo: "",
@@ -139,9 +137,8 @@ const createDisabledReason = computed(() => {
 const batchUnavailable = computed(() => hotspotsLoading.value || hotspots.value.length === 0);
 
 async function generateBatch(): Promise<void> {
-  error.value = "";
   if (!batch.hotspotId) {
-    error.value = "Selecione um hotspot para gerar o lote de vouchers.";
+    toast.error("Selecione um hotspot", "Escolha o hotspot antes de gerar o lote de vouchers.");
     return;
   }
 
@@ -155,9 +152,10 @@ async function generateBatch(): Promise<void> {
       tempoMinutos: Number(batch.tempoMinutos),
     });
     batchOpen.value = false;
+    toast.success("Lote gerado", `${Number(batch.quantidade)} voucher(s) criado(s).`);
     await crud.value?.loadItems();
   } catch (requestError) {
-    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel gerar os vouchers.";
+    toast.error("Nao foi possivel gerar os vouchers", requestError instanceof ApiError ? requestError.message : "Nao foi possivel gerar os vouchers.");
   } finally {
     saving.value = false;
   }
@@ -168,12 +166,12 @@ function canDeleteVoucher(item: CrudRecord): boolean {
 }
 
 async function markSold(id: string, reload: () => Promise<void>): Promise<void> {
-  error.value = "";
   try {
     await api.post(`/vouchers/${id}/sell`);
+    toast.success("Voucher vendido", "O voucher foi marcado como vendido.");
     await reload();
   } catch (requestError) {
-    error.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel marcar o voucher como vendido.";
+    toast.error("Nao foi possivel vender", requestError instanceof ApiError ? requestError.message : "Nao foi possivel marcar o voucher como vendido.");
   }
 }
 

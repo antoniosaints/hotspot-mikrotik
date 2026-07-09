@@ -23,9 +23,6 @@
     title="Acesso personalizado"
     description="Configure o valor por minuto e os limites do slider mostrado como ultima opcao em Comprar acesso."
   >
-    <Alert v-if="customError" variant="destructive" class="mb-4">{{ customError }}</Alert>
-    <Alert v-if="customSuccess" class="mb-4">{{ customSuccess }}</Alert>
-
     <form id="custom-access-form" class="space-y-4" @submit.prevent="saveCustomSettings">
       <div>
         <Label>Hotspot</Label>
@@ -85,7 +82,6 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { SlidersHorizontal } from "lucide-vue-next";
 
-import Alert from "@/components/ui/Alert.vue";
 import Button from "@/components/ui/Button.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import Input from "@/components/ui/Input.vue";
@@ -93,6 +89,7 @@ import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import CrudPage, { type CrudColumn, type CrudField, type CrudRecord } from "@/pages/CrudPage.vue";
 import { api, ApiError } from "@/services/api";
+import { toast } from "@/services/toast";
 import type { Hotspot } from "@/types/hotspot";
 
 const hotspots = ref<Hotspot[]>([]);
@@ -100,8 +97,6 @@ const hotspotsLoading = ref(true);
 const selectedCustomHotspotId = ref("");
 const customModalOpen = ref(false);
 const customSaving = ref(false);
-const customError = ref("");
-const customSuccess = ref("");
 const customForm = reactive({
   compraOnline: false,
   compraPersonalizada: false,
@@ -168,14 +163,10 @@ function openCustomModal(): void {
   if (!selectedCustomHotspotId.value) {
     selectedCustomHotspotId.value = hotspots.value[0]?.id ?? "";
   }
-  customError.value = "";
-  customSuccess.value = "";
   customModalOpen.value = true;
 }
 
 watch(selectedCustomHotspot, (hotspot) => {
-  customError.value = "";
-  customSuccess.value = "";
   customForm.compraOnline = Boolean(hotspot?.compraOnline);
   customForm.compraPersonalizada = Boolean(hotspot?.compraPersonalizada);
   customForm.valorMinutoCentavos = hotspot?.valorMinutoCentavos ?? 10;
@@ -189,8 +180,6 @@ async function saveCustomSettings(): Promise<void> {
   const hotspot = selectedCustomHotspot.value;
   if (!hotspot) return;
   customSaving.value = true;
-  customError.value = "";
-  customSuccess.value = "";
   try {
     const payload = {
       compraOnline: customForm.compraOnline,
@@ -203,16 +192,16 @@ async function saveCustomSettings(): Promise<void> {
     };
 
     if (payload.compraPersonalizada && payload.tempoPersonalizadoMaximo < payload.tempoPersonalizadoMinimo) {
-      customError.value = "O tempo maximo deve ser maior ou igual ao tempo minimo.";
+      toast.error("Configuracao invalida", "O tempo maximo deve ser maior ou igual ao tempo minimo.");
       return;
     }
 
     const updated = await api.put<Hotspot>(`/hotspots/${hotspot.id}`, payload);
     hotspots.value = hotspots.value.map((item) => (item.id === updated.id ? updated : item));
-    customSuccess.value = "Configuracao personalizada salva.";
+    toast.success("Configuracao personalizada salva", "O acesso personalizado foi atualizado.");
     customModalOpen.value = false;
   } catch (requestError) {
-    customError.value = requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar o personalizado.";
+    toast.error("Nao foi possivel salvar", requestError instanceof ApiError ? requestError.message : "Nao foi possivel salvar o personalizado.");
   } finally {
     customSaving.value = false;
   }

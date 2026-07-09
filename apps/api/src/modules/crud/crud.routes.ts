@@ -13,7 +13,7 @@ import {
 import { listHotspotServers, listHotspotUsers, removeHotspotUserById, testConnection } from "../../services/mikrotik.service.js";
 import { normalizeCpf, normalizeVoucherCode } from "../../utils/normalization.js";
 import { sendCrudError } from "../../utils/http.js";
-import { AdminRole, RoleGroup, requireAnyRole } from "../auth/permissions.js";
+import { AdminRole, getAdminPayload, RoleGroup, requireAnyRole } from "../auth/permissions.js";
 
 export { normalizeCpf, normalizeVoucherCode };
 
@@ -127,10 +127,12 @@ const generateVouchersSchema = z.object({
   segmentacao: z.string().optional().nullable(),
 });
 
+const adminRoleSchema = z.enum(["admin", "manager", "marketing", "seller", "user"]);
+
 const usuarioCreateSchema = z.object({
   usuario: z.string().min(1),
   senha: z.string().min(6),
-  role: z.enum(["admin", "manager", "marketing", "seller", "user"]),
+  role: adminRoleSchema,
   nome: z.string().optional().nullable(),
   telefone: z.string().optional().nullable(),
   email: z.preprocess((value) => (value === "" ? null : value), z.string().email().optional().nullable()),
@@ -139,7 +141,7 @@ const usuarioCreateSchema = z.object({
 const usuarioUpdateSchema = z.object({
   usuario: z.string().min(1).optional(),
   senha: z.string().min(6).optional().nullable(),
-  role: z.enum(["admin", "manager", "user"]).optional(),
+  role: adminRoleSchema.optional(),
   nome: z.string().optional().nullable(),
   telefone: z.string().optional().nullable(),
   email: z.preprocess((value) => (value === "" ? null : value), z.string().email().optional().nullable()),
@@ -279,8 +281,21 @@ function cleanMaskedSecrets<T extends Record<string, unknown>>(data: T): T {
   ) as T;
 }
 
-async function assertNotRemovingLastAdmin(id: string, data: { role?: string; ativo?: boolean }) {
-  if (data.role !== "admin" || data.ativo !== false) return;
+type UserMutationData = { role?: string; ativo?: boolean };
+type UserMutationActor = { id: string; role: string };
+
+async function assertNotLeavingWithoutActiveAdmin(id: string, data: UserMutationData) {
+  const target = await prisma.admin.findUnique({
+    where: { id },
+    select: { role: true, ativo: true },
+  });
+
+  const removesActiveAdmin =
+    target?.role === "admin" &&
+    target.ativo &&
+    ((data.role !== undefined && data.role !== "admin") || data.ativo === false);
+
+  if (!removesActiveAdmin) return;
 
   const activeAdmins = await prisma.admin.count({
     where: { role: "admin", ativo: true, id: { not: id } },
@@ -289,6 +304,28 @@ async function assertNotRemovingLastAdmin(id: string, data: { role?: string; ati
   if (activeAdmins === 0) {
     throw new Error("Nao e permitido desativar o ultimo administrador ativo.");
   }
+}
+
+async function assertUserUpdateAllowed(id: string, data: UserMutationData, actor: UserMutationActor) {
+  if (id === actor.id) {
+    if (data.role !== undefined && data.role !== actor.role) {
+      throw new Error("Nao e permitido alterar a propria permissao.");
+    }
+
+    if (data.ativo === false) {
+      throw new Error("Nao e permitido desativar o proprio usuario.");
+    }
+  }
+
+  await assertNotLeavingWithoutActiveAdmin(id, data);
+}
+
+async function assertUserDeleteAllowed(id: string, actor: UserMutationActor) {
+  if (id === actor.id) {
+    throw new Error("Nao e permitido apagar o proprio usuario.");
+  }
+
+  await assertNotLeavingWithoutActiveAdmin(id, { role: "admin", ativo: false });
 }
 
 export async function crudRoutes(app: FastifyInstance) {
@@ -369,7 +406,7 @@ export async function crudRoutes(app: FastifyInstance) {
     try {
       const params = idParamsSchema.parse(request.params);
       const body = usuarioUpdateSchema.parse(request.body);
-      await assertNotRemovingLastAdmin(params.id, body);
+      await assertUserUpdateAllowed(params.id, body, getAdminPayload(request));
       const { senha, ...rest } = body;
       return await prisma.admin.update({
         where: { id: params.id },
@@ -377,7 +414,7 @@ export async function crudRoutes(app: FastifyInstance) {
         select: { id: true, usuario: true, nome: true, telefone: true, email: true, role: true, ativo: true, criadoEm: true, atualizadoEm: true },
       });
     } catch (error) {
-      if (error instanceof Error && error.message.includes("ultimo administrador")) {
+      if (error instanceof Error && error.message.startsWith("Nao e permitido")) {
         return reply.status(400).send({ error: error.message });
       }
       return sendCrudError(reply, error);
@@ -387,10 +424,10 @@ export async function crudRoutes(app: FastifyInstance) {
   app.delete("/usuarios/:id", { preHandler: adminPreHandler }, async (request, reply) => {
     try {
       const params = idParamsSchema.parse(request.params);
-      await assertNotRemovingLastAdmin(params.id, { role: "admin", ativo: false });
+      await assertUserDeleteAllowed(params.id, getAdminPayload(request));
       return await prisma.admin.delete({ where: { id: params.id } });
     } catch (error) {
-      if (error instanceof Error && error.message.includes("ultimo administrador")) {
+      if (error instanceof Error && error.message.startsWith("Nao e permitido")) {
         return reply.status(400).send({ error: error.message });
       }
       return sendCrudError(reply, error);
