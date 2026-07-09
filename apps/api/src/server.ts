@@ -17,6 +17,7 @@ import { portalRoutes } from "./modules/portal/portal.routes.js";
 import { uploadsRoutes } from "./modules/uploads/uploads.routes.js";
 import { settingsRoutes } from "./modules/settings/settings.routes.js";
 import { campaignsRoutes } from "./modules/campaigns/campaigns.routes.js";
+import { autohelpRoutes } from "./modules/autohelp/autohelp.routes.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -85,6 +86,7 @@ export function buildServer() {
       await api.register(uploadsRoutes);
       await api.register(settingsRoutes);
       await api.register(campaignsRoutes);
+      await api.register(autohelpRoutes);
     },
     { prefix: "/api" },
   );

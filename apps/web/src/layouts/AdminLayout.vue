@@ -45,6 +45,7 @@
         <RouterView />
       </main>
     </div>
+    <AutoHelpMenu />
   </div>
 </template>
 
@@ -73,6 +74,7 @@ import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
+import AutoHelpMenu from "@/components/AutoHelpMenu.vue";
 import NotificationBell from "@/components/ui/NotificationBell.vue";
 import { clearToken, getCurrentAdmin, type AdminRole } from "@/services/api";
 import { useTheme } from "@/services/theme";
@@ -89,7 +91,6 @@ const navigation = [
   { label: "Dashboard", to: "/dashboard", icon: Gauge, roles: ["admin", "manager", "seller", "user"] },
   { label: "Locais", to: "/locais", icon: MapPinned, roles: ["admin", "manager"] },
   { label: "Equipamentos", to: "/mikrotiks", icon: Router, roles: ["admin", "manager"] },
-  { label: "Integracoes", to: "/integracoes", icon: Link2, roles: ["admin", "manager"] },
   { label: "Hotspots", to: "/hotspots", icon: RadioTower, roles: ["admin", "manager"] },
   { label: "Telas de cadastro", to: "/cadastros-telas", icon: ClipboardList, roles: ["admin", "manager", "marketing"] },
   { label: "Campanhas", to: "/campanhas", icon: Megaphone, roles: ["admin", "manager", "marketing"] },
@@ -100,6 +101,7 @@ const navigation = [
   { label: "Logins CPF", to: "/logins", icon: ShieldCheck, roles: ["admin", "manager", "marketing", "seller"] },
   { label: "Usuarios", to: "/usuarios", icon: Users, roles: ["admin"] },
   { label: "Configuracoes", to: "/configuracoes", icon: Settings, roles: ["admin", "manager"] },
+  { label: "Apps", to: "/integracoes", icon: Link2, roles: ["admin", "manager"] },
 ];
 
 const visibleNavigation = computed(() => navigation.filter((item) => item.roles.includes(currentRole.value)));

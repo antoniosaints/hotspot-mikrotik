@@ -73,7 +73,7 @@ const router = createRouter({
           path: "integracoes",
           name: "integracoes",
           component: IntegracoesPage,
-          meta: { title: "Integracoes", requiresAuth: true, roles: ["admin", "manager"] },
+          meta: { title: "Apps", requiresAuth: true, roles: ["admin", "manager"] },
         },
         {
           path: "hotspots",

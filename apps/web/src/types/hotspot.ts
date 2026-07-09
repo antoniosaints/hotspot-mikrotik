@@ -38,7 +38,7 @@ export type CadastroTela = EntityBase & {
 
 export type Integracao = EntityBase & {
   nome: string;
-  tipo: "IXC" | "MERCADO_PAGO";
+  tipo: "IXC" | "MERCADO_PAGO" | "GEMINI";
   baseUrl: string | null;
   usuario: string | null;
   senha: string | null;

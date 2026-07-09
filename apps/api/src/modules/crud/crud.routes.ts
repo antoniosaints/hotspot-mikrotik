@@ -44,7 +44,7 @@ const mikrotikUpdateSchema = mikrotikCreateSchema.partial();
 
 const integracaoCreateSchema = z.object({
   nome: z.string().min(1),
-  tipo: z.enum(["IXC", "MERCADO_PAGO"]).optional(),
+  tipo: z.enum(["IXC", "MERCADO_PAGO", "GEMINI"]).optional(),
   baseUrl: z.string().optional().nullable(),
   usuario: z.string().optional().nullable(),
   senha: z.string().optional().nullable(),
