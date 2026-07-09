@@ -27,7 +27,7 @@
       :total-pages="totalPages"
     />
 
-    <Card>
+    <div>
       <div v-if="loading" class="py-10 text-center text-sm text-muted-foreground">Carregando registros...</div>
       <Table v-else>
         <thead class="bg-muted/60">
@@ -78,7 +78,7 @@
           </tr>
         </tbody>
       </Table>
-    </Card>
+    </div>
 
     <Dialog
       v-model:open="modalOpen"
@@ -233,7 +233,6 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import Alert from "@/components/ui/Alert.vue";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
-import Card from "@/components/ui/Card.vue";
 import DataTableControls from "@/components/ui/DataTableControls.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import ImagePicker from "@/components/ui/ImagePicker.vue";

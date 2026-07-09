@@ -28,7 +28,7 @@
       :total-pages="totalPages"
     />
 
-    <Card>
+    <div>
       <Table>
         <thead class="bg-muted/60">
           <tr>
@@ -93,7 +93,7 @@
           </tr>
         </tbody>
       </Table>
-    </Card>
+    </div>
   </div>
 
   <!-- Editar dados do dispositivo -->
@@ -237,7 +237,6 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import Alert from "@/components/ui/Alert.vue";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
-import Card from "@/components/ui/Card.vue";
 import DataTableControls from "@/components/ui/DataTableControls.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import Input from "@/components/ui/Input.vue";

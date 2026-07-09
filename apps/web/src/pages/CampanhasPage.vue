@@ -20,7 +20,7 @@
 
     <Alert v-if="error" variant="destructive">{{ error }}</Alert>
 
-    <Card>
+    <div>
       <div v-if="loading" class="py-10 text-center text-sm text-muted-foreground">Carregando campanhas...</div>
       <Table v-else>
         <thead class="bg-muted/60">
@@ -60,7 +60,7 @@
           </tr>
         </tbody>
       </Table>
-    </Card>
+    </div>
 
     <Dialog
       v-model:open="modalOpen"
@@ -308,7 +308,6 @@ import Alert from "@/components/ui/Alert.vue";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import CampanhaView from "@/components/ui/CampanhaView.vue";
-import Card from "@/components/ui/Card.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import ImagePicker from "@/components/ui/ImagePicker.vue";
 import Input from "@/components/ui/Input.vue";

@@ -23,7 +23,7 @@
       :total-pages="totalPages"
     />
 
-    <Card>
+    <div>
       <Table>
         <thead class="bg-muted/60">
           <tr>
@@ -56,7 +56,7 @@
           </tr>
         </tbody>
       </Table>
-    </Card>
+    </div>
   </div>
 </template>
 
@@ -67,7 +67,6 @@ import { computed, onMounted, ref, watch } from "vue";
 import Alert from "@/components/ui/Alert.vue";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
-import Card from "@/components/ui/Card.vue";
 import DataTableControls from "@/components/ui/DataTableControls.vue";
 import Table from "@/components/ui/Table.vue";
 import { api, ApiError } from "@/services/api";
